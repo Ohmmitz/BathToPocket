@@ -1,0 +1,121 @@
+@import "tailwindcss";
+
+.font-onest {
+  font-family: 'Onest', sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+@layer base {
+  body {
+    font-family: 'Anuphan', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    background-color: #F3F8F5;
+  }
+}
+
+/* Liquid Glass Ambient Backdrops */
+.liquid-glass-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.liquid-glass-blob-1 {
+  position: absolute;
+  top: -10%;
+  left: 15%;
+  width: 50vw;
+  height: 50vw;
+  max-width: 650px;
+  max-height: 650px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.12) 0%, rgba(52, 211, 153, 0.04) 50%, transparent 70%);
+  filter: blur(60px);
+  border-radius: 9999px;
+  animation: floatSlow1 18s ease-in-out infinite alternate;
+}
+
+.liquid-glass-blob-2 {
+  position: absolute;
+  top: 35%;
+  right: -5%;
+  width: 45vw;
+  height: 45vw;
+  max-width: 550px;
+  max-height: 550px;
+  background: radial-gradient(circle, rgba(20, 184, 166, 0.1) 0%, rgba(110, 231, 183, 0.03) 50%, transparent 70%);
+  filter: blur(70px);
+  border-radius: 9999px;
+  animation: floatSlow2 22s ease-in-out infinite alternate;
+}
+
+.liquid-glass-blob-3 {
+  position: absolute;
+  bottom: -10%;
+  left: 5%;
+  width: 55vw;
+  height: 55vw;
+  max-width: 700px;
+  max-height: 700px;
+  background: radial-gradient(circle, rgba(5, 150, 105, 0.08) 0%, rgba(167, 243, 208, 0.03) 60%, transparent 80%);
+  filter: blur(80px);
+  border-radius: 9999px;
+  animation: floatSlow3 26s ease-in-out infinite alternate;
+}
+
+@keyframes floatSlow1 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(40px, 30px) scale(1.08); }
+}
+
+@keyframes floatSlow2 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-30px, 40px) scale(0.95); }
+}
+
+@keyframes floatSlow3 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(25px, -35px) scale(1.05); }
+}
+
+/* Liquid Glass Surface Classes */
+.glass-surface {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 10px 30px -5px rgba(5, 150, 105, 0.05), inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  box-shadow: 0 12px 32px -4px rgba(5, 150, 105, 0.06), 0 4px 12px -2px rgba(0, 0, 0, 0.02), inset 0 1px 2px 0 rgba(255, 255, 255, 0.95);
+}
+
+.glass-island {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1.5px solid rgba(255, 255, 255, 0.92);
+  box-shadow: 0 16px 40px -6px rgba(6, 78, 59, 0.22), 0 4px 16px -2px rgba(6, 78, 59, 0.1), inset 0 1px 2px 0 rgba(255, 255, 255, 1);
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.6);
+}
