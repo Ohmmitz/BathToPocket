@@ -5,12 +5,6 @@ import {
   Calendar, 
   Trash2, 
   Filter, 
-  Tag, 
-  TrendingUp, 
-  TrendingDown, 
-  ArrowUpDown,
-  Download,
-  AlertCircle
 } from 'lucide-react';
 import { 
   Transaction, 
@@ -102,18 +96,18 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       if (t.type === 'income') income += Number(t.amount) || 0;
       else expense += Number(t.amount) || 0;
     }
-    return { income, expense, balance: income - expense };
+    return { income, expense };
   }, [finalFiltered]);
 
   return (
-    <div className="space-y-6 pb-20 md:pb-8">
+    <div className="space-y-6 pb-20 md:pb-6">
       {/* Top Header & Undo Bar */}
-      <div className="glass-card p-5.5 rounded-3xl border border-white/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="glass-card p-4 sm:p-5 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">
+          <h1 className="text-xl font-bold text-celtic-900 tracking-tight">
             ประวัติรายการบันทึก
           </h1>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <p className="text-sm text-celtic-700 mt-1">
             ค้นหา กรองข้อมูลตามช่วงเวลา และย้อนรายการที่บันทึกผิดพลาด
           </p>
         </div>
@@ -124,7 +118,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
             type="button"
             onClick={onOpenUndoModal}
             disabled={isSyncing}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs shadow-md shadow-amber-500/25 transition-all self-start sm:self-auto"
+            className="flex items-center justify-center gap-2 px-4 py-3 rounded-full bg-apple-300 hover:bg-apple-400 active:scale-95 text-celtic-900 font-medium text-sm transition-colors self-start sm:self-auto"
             title="ย้อนรายการล่าสุดที่เพิ่งบันทึก (Undo)"
           >
             <RotateCcw className="w-4 h-4" />
@@ -134,21 +128,21 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       </div>
 
       {/* Filter and Instant Search Box */}
-      <div className="glass-card p-5.5 rounded-3xl border border-white/80 shadow-xs space-y-4">
+      <div className="glass-card p-4 sm:p-5 rounded-3xl space-y-4">
         {/* Instant Search Bar */}
         <div className="relative">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-apple-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="ค้นหาทันที... พิมพ์ชื่อรายการ, หมวดหมู่, บันทึก หรือจำนวนเงิน"
-            className="w-full pl-10 pr-10 py-3 text-xs bg-white/70 backdrop-blur-md border border-white/90 rounded-2xl text-gray-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all shadow-2xs"
+            className="w-full pl-11 pr-11 py-3.5 text-sm bg-snow-drift-100 rounded-xl text-celtic-900 placeholder:text-celtic-700/70 focus:bg-snow-drift-50 focus:outline-none focus:ring-2 focus:ring-apple-300 transition-colors"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400 hover:text-gray-700 p-1"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-celtic-700 hover:text-celtic-900 p-1"
             >
               ล้าง
             </button>
@@ -156,9 +150,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
         </div>
 
         {/* Date Preset Filter Chips */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-bold text-gray-500 mr-1 flex items-center gap-1">
-            <Calendar className="w-3.5 h-3.5" /> ช่วงเวลา:
+        <div className="filter-tag-scroll flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap pb-1" role="group" aria-label="กรองตามช่วงเวลา">
+          <span className="shrink-0 text-sm font-medium text-celtic-700 mr-1 flex items-center gap-1.5">
+            <Calendar className="w-4 h-4 text-apple-400" /> ช่วงเวลา
           </span>
           {[
             { id: 'all', label: 'ทั้งหมด' },
@@ -173,10 +167,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                 key={preset.id}
                 type="button"
                 onClick={() => setDatePreset(preset.id as DatePreset)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shadow-2xs backdrop-blur-xs ${
+                className={`shrink-0 px-4 py-2.5 rounded-full text-sm font-medium transition-colors ${
                   isSelected
-                    ? 'bg-emerald-700 text-white shadow-sm shadow-emerald-800/30 font-bold scale-[1.02]'
-                    : 'bg-white/70 text-gray-700 hover:bg-white border border-white/80'
+                    ? 'bg-apple-300 text-celtic-900'
+                    : 'bg-snow-drift-100 text-celtic-700 hover:bg-snow-drift-200'
                 }`}
               >
                 {preset.label}
@@ -187,26 +181,28 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 
         {/* Custom Date Pickers (if custom is selected) */}
         {datePreset === 'custom' && (
-          <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex flex-col sm:flex-row items-center gap-2 text-xs animate-in fade-in duration-150">
-            <span className="font-semibold text-gray-600 shrink-0">ตั้งแต่วันที่:</span>
+          <div className="p-4 bg-snow-drift-100 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-3 text-sm animate-in fade-in duration-150">
+            <label htmlFor="history-start-date" className="font-medium text-celtic-700 shrink-0">ตั้งแต่วันที่</label>
             <input
+              id="history-start-date"
               type="date"
               value={customStart}
               onChange={(e) => setCustomStart(e.target.value)}
-              className="px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs text-gray-800"
+              className="w-full sm:w-auto px-3 py-2.5 bg-snow-drift-50 rounded-xl text-sm text-celtic-900 focus:outline-none focus:ring-2 focus:ring-apple-300"
             />
-            <span className="font-semibold text-gray-600 shrink-0">ถึงวันที่:</span>
+            <label htmlFor="history-end-date" className="font-medium text-celtic-700 shrink-0">ถึงวันที่</label>
             <input
+              id="history-end-date"
               type="date"
               value={customEnd}
               onChange={(e) => setCustomEnd(e.target.value)}
-              className="px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs text-gray-800"
+              className="w-full sm:w-auto px-3 py-2.5 bg-snow-drift-50 rounded-xl text-sm text-celtic-900 focus:outline-none focus:ring-2 focus:ring-apple-300"
             />
             {(customStart || customEnd) && (
               <button
                 type="button"
                 onClick={() => { setCustomStart(''); setCustomEnd(''); }}
-                className="text-xs text-rose-600 hover:underline sm:ml-auto"
+                className="text-sm text-celtic-700 hover:text-celtic-900 sm:ml-auto"
               >
                 รีเซ็ตช่วงวัน
               </button>
@@ -215,17 +211,17 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
         )}
 
         {/* Type Filter Buttons */}
-        <div className="flex items-center gap-2 pt-1 border-t border-gray-100 text-xs">
-          <span className="font-bold text-gray-400 mr-1 flex items-center gap-1">
-            <Filter className="w-3.5 h-3.5" /> ประเภท:
+        <div className="filter-tag-scroll flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap border-t border-snow-drift-200 pt-4" role="group" aria-label="กรองตามประเภทรายการ">
+          <span className="shrink-0 text-sm font-medium text-celtic-700 mr-1 flex items-center gap-1.5">
+            <Filter className="w-4 h-4 text-apple-400" /> ประเภท
           </span>
           <button
             type="button"
             onClick={() => setTypeFilter('all')}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+            className={`shrink-0 px-3.5 py-2 rounded-full text-sm font-medium transition-colors ${
               typeFilter === 'all'
-                ? 'bg-gray-900 text-white font-bold'
-                : 'text-gray-600 hover:bg-gray-100'
+                ? 'bg-apple-300 text-celtic-900 font-bold'
+                : 'bg-snow-drift-100 text-celtic-700 hover:bg-snow-drift-200'
             }`}
           >
             ทั้งหมด ({dateFiltered.length})
@@ -233,10 +229,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
           <button
             type="button"
             onClick={() => setTypeFilter('expense')}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+            className={`shrink-0 px-3.5 py-2 rounded-full text-sm font-medium transition-colors ${
               typeFilter === 'expense'
-                ? 'bg-rose-600 text-white font-bold'
-                : 'text-gray-600 hover:bg-gray-100'
+                ? 'bg-apple-300 text-celtic-900 font-bold'
+                : 'bg-snow-drift-100 text-celtic-700 hover:bg-snow-drift-200'
             }`}
           >
             รายจ่าย ({dateFiltered.filter((t) => t.type === 'expense').length})
@@ -244,10 +240,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
           <button
             type="button"
             onClick={() => setTypeFilter('income')}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+            className={`shrink-0 px-3.5 py-2 rounded-full text-sm font-medium transition-colors ${
               typeFilter === 'income'
-                ? 'bg-emerald-600 text-white font-bold'
-                : 'text-gray-600 hover:bg-gray-100'
+                ? 'bg-apple-300 text-celtic-900 font-bold'
+                : 'bg-snow-drift-100 text-celtic-700 hover:bg-snow-drift-200'
             }`}
           >
             รายรับ ({dateFiltered.filter((t) => t.type === 'income').length})
@@ -256,23 +252,28 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       </div>
 
       {/* Filter Results Summary Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-gray-500 font-medium">
-        <span>
-          พบทั้งหมด <strong className="text-gray-900">{finalFiltered.length}</strong> รายการ
-        </span>
-        <div className="flex items-center gap-3">
-          <span>รายรับ: <strong className="font-onest text-emerald-800">+{filteredSummary.income.toLocaleString('th-TH')}-.</strong></span>
-          <span>รายจ่าย: <strong className="font-onest text-rose-700">-{filteredSummary.expense.toLocaleString('th-TH')}-.</strong></span>
+      <div className="grid grid-cols-3 gap-2 sm:gap-3" aria-label="สรุปรายการที่กรอง">
+        <div className="min-w-0 rounded-2xl bg-snow-drift-100 p-3 sm:p-4">
+          <span className="block text-xs sm:text-sm text-celtic-700">รายการ</span>
+          <strong className="font-onest mt-1 block text-base sm:text-xl font-medium text-celtic-900">{finalFiltered.length}</strong>
+        </div>
+        <div className="min-w-0 rounded-2xl bg-snow-drift-100 p-3 sm:p-4">
+          <span className="block text-xs sm:text-sm text-celtic-700">รายรับ</span>
+          <strong className="font-onest mt-1 block truncate text-sm sm:text-xl font-medium text-celtic-900">+{filteredSummary.income.toLocaleString('th-TH')}-.</strong>
+        </div>
+        <div className="min-w-0 rounded-2xl bg-snow-drift-100 p-3 sm:p-4">
+          <span className="block text-xs sm:text-sm text-celtic-700">รายจ่าย</span>
+          <strong className="font-onest mt-1 block truncate text-sm sm:text-xl font-medium text-celtic-900">-{filteredSummary.expense.toLocaleString('th-TH')}-.</strong>
         </div>
       </div>
 
       {/* Grouped Transaction List */}
-      <div className="space-y-5">
+      <div className="space-y-6">
         {Object.keys(groupedByDate).length === 0 ? (
-          <div className="p-10 text-center bg-white rounded-2xl border border-gray-100 shadow-xs">
-            <Search className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-            <p className="text-sm font-semibold text-gray-700">ไม่พบรายการที่ตรงกับเงื่อนไข</p>
-            <p className="text-xs text-gray-400 mt-1">
+          <div className="p-8 sm:p-10 text-center bg-snow-drift-100 rounded-3xl">
+            <Search className="w-10 h-10 text-apple-400 mx-auto mb-3" />
+            <p className="text-base font-medium text-celtic-900">ไม่พบรายการที่ตรงกับเงื่อนไข</p>
+            <p className="text-sm text-celtic-700 mt-1">
               ลองเปลี่ยนคำค้นหา หรือเปลี่ยนช่วงเวลาตัวกรอง
             </p>
           </div>
@@ -286,21 +287,21 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
               .reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
 
             return (
-              <div key={dateStr} className="space-y-2">
+              <div key={dateStr} className="space-y-2.5">
                 {/* Date Header */}
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-emerald-800" />
+                <div className="flex items-center justify-between gap-3 px-1 py-1">
+                  <span className="text-sm font-medium text-celtic-800 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-apple-400" />
                     {formatDateHeader(dateStr)}
                   </span>
-                  <div className="font-onest text-[11px] font-semibold flex items-center gap-2">
-                    {dayIncome > 0 && <span className="font-onest text-emerald-800">+{dayIncome.toLocaleString('th-TH')}-.</span>}
-                    {dayExpense > 0 && <span className="font-onest text-rose-700">-{dayExpense.toLocaleString('th-TH')}-.</span>}
+                  <div className="font-onest text-xs flex items-center gap-2">
+                    {dayIncome > 0 && <span className="text-celtic-800">+{dayIncome.toLocaleString('th-TH')}-.</span>}
+                    {dayExpense > 0 && <span className="text-celtic-800">-{dayExpense.toLocaleString('th-TH')}-.</span>}
                   </div>
                 </div>
 
                 {/* Items in this date */}
-                <div className="glass-card rounded-3xl border border-white/80 shadow-xs divide-y divide-white/60 overflow-hidden">
+                <div className="glass-card rounded-3xl bg-snow-drift-50 divide-y divide-snow-drift-200 overflow-hidden">
                   {items.map((tx) => {
                     const isExpense = tx.type === 'expense';
                     const catInfo = getCategoryInfo(tx.category);
@@ -309,28 +310,28 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                     return (
                       <div
                         key={tx.id}
-                        className={`p-4 sm:p-4.5 flex items-center justify-between gap-3 hover:bg-white/50 transition-colors backdrop-blur-xs ${
+                        className={`p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-snow-drift-100 transition-colors ${
                           isLatest ? 'bg-amber-500/10' : ''
                         }`}
                       >
                         {/* Left: Category Icon + Title + Note */}
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className={`p-3 rounded-2xl shrink-0 ${catInfo.bgLight} ${catInfo.textColor} border ${catInfo.borderColor} shadow-2xs`}>
+                          <div className="p-3 rounded-2xl shrink-0 bg-apple-200 text-celtic-900">
                             {catInfo.icon}
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <h4 className="text-xs sm:text-sm font-bold text-gray-900 truncate">
+                              <h4 className="text-sm font-medium text-celtic-900 truncate">
                                 {tx.title}
                               </h4>
                               {isLatest && (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 shrink-0">
+                                <span className="px-2 py-1 rounded-full text-xs font-medium bg-apple-200 text-celtic-900 shrink-0">
                                   ล่าสุด
                                 </span>
                               )}
                             </div>
-                            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-gray-600 mt-0.5">
-                              <span className="font-medium text-gray-700">{tx.category}</span>
+                            <div className="flex flex-wrap items-center gap-1.5 text-xs text-celtic-700 mt-1">
+                              <span className="font-medium text-celtic-700">{tx.category}</span>
                               {tx.time && (
                                 <>
                                   <span>•</span>
@@ -340,7 +341,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                               {tx.note && (
                                 <>
                                   <span>•</span>
-                                  <span className="text-gray-700 italic truncate max-w-[140px] sm:max-w-xs">
+                                  <span className="text-celtic-700 italic truncate max-w-[140px] sm:max-w-xs">
                                     "{tx.note}"
                                   </span>
                                 </>
@@ -350,14 +351,12 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                         </div>
 
                         {/* Right: Amount & Delete Action */}
-                        <div className="flex items-center gap-3 shrink-0">
+                        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                           <div className="text-right">
-                            <span className={`font-onest text-sm sm:text-base font-bold block ${
-                              isExpense ? 'text-rose-700' : 'text-emerald-800'
-                            }`}>
+                            <span className="font-onest text-sm sm:text-base font-medium text-celtic-900 block">
                               {isExpense ? '-' : '+'}{Number(tx.amount).toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}-.
                             </span>
-                            <span className="text-[10px] text-gray-600 font-medium">
+                            <span className="text-xs text-celtic-700">
                               {isExpense ? 'รายจ่าย' : 'รายรับ'}
                             </span>
                           </div>
@@ -365,7 +364,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                           <button
                             type="button"
                             onClick={() => onDeleteTransaction(tx.id)}
-                            className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                            className="min-w-10 min-h-10 p-2 text-stiletto-800 hover:bg-snow-drift-100 rounded-xl transition-colors"
                             title="ลบรายการนี้"
                             aria-label={`ลบรายการ ${tx.title}`}
                           >

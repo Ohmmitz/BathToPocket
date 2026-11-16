@@ -83,7 +83,7 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-celtic-900/35 animate-in fade-in duration-200">
       <div 
         className="w-full max-w-2xl glass-island rounded-3xl shadow-2xl border border-white/95 overflow-hidden flex flex-col max-h-[90vh]"
         role="dialog"
@@ -238,7 +238,7 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
                   <button
                     onClick={onSyncAll}
                     disabled={isSyncing || !scriptUrl}
-                    className="w-full sm:flex-1 px-4 py-2 bg-gray-900 hover:bg-black text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    className="w-full sm:flex-1 px-4 py-2 bg-apple-300 hover:bg-apple-400 text-celtic-900 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
                     {isSyncing ? 'กำลังซิงค์...' : 'ส่งข้อมูลทั้งหมดไปเขียนลงชีต (Push)'}

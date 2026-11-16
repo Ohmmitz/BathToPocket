@@ -7,182 +7,216 @@ export const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyZjY
 export const DEFAULT_SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1qaoFpMvTKGcMcBbprvypRVXh2HsgqIMgelmhMawWdP0/edit';
 
 export const DEFAULT_APPS_SCRIPT_CODE = `/**
- * Google Apps Script สำหรับระบบบันทึกรายรับ-รายจ่าย & วางแผนงบประมาณ
- * วิธีติดตั้ง:
- * 1. เปิด Google Sheets ใหม่ -> ไปที่เมนู "ส่วนขยาย" (Extensions) -> "Apps Script"
- * 2. ลบโค้ดเดิมทั้งหมดออก แล้ววางโค้ดนี้ลงไป
- * 3. กด "การทำให้ใช้งานได้" (Deploy) -> "การทำให้ใช้งานได้ใหม่" (New deployment)
- * 4. เลือกประเภท: "เว็บแอปพลิเคชัน" (Web App)
- * 5. ตั้งค่า: "เรียกใช้งานในฐานะ" (Execute as): "ฉัน (Me)"
- * 6. ตั้งค่า: "ผู้ที่มีสิทธิ์เข้าถึง" (Who has access): "ทุกคน (Anyone)" **สำคัญมาก**
- * 7. กด "ทำให้ใช้งานได้" (Deploy) แล้วคัดลอก Web App URL (ลงท้ายด้วย /exec) มาวางในเว็บแอพ
+ * Google Apps Script สำหรับระบบบันทึกรายรับ-รายจ่ายและแผนงบประมาณ
+ * ข้อมูล BudgetItem จะถูกเก็บทั้งแบบคอลัมน์สำหรับอ่านง่าย และ JSON เต็มในคอลัมน์สุดท้าย
+ * เพื่อเก็บ icon, planType, planMonth และ planAmounts ได้ครบ
+ *
+ * วิธีติดตั้ง: วางโค้ดนี้ใน Apps Script แล้ว Deploy เป็น Web app
+ * Execute as: Me | Who has access: Anyone
  */
 
+var TRANSACTIONS_SHEET = 'Transactions';
+var BUDGETS_SHEET = 'BudgetPlans';
+var SAVINGS_SHEET = 'Savings';
+var TRANSACTION_HEADERS = ['รหัส (ID)', 'วันที่', 'เวลา', 'ประเภท', 'หมวดหมู่', 'รายการ', 'จำนวนเงิน (บาท)', 'หมายเหตุ', 'เวลาที่บันทึก'];
+var BUDGET_HEADERS = ['ID', 'หมวดหมู่', 'ชื่อรายการ', 'จำนวนเงิน (บาท)', 'เวลาอัปเดต', 'ข้อมูลรายการ (JSON)'];
+var SAVINGS_HEADERS = ['รหัสเป้าหมาย', 'ชื่อเป้าหมาย', 'เป้าหมายรวม (บาท)', 'ยอดสะสมปัจจุบัน (บาท)', 'แผนออมต่อเดือน (บาท)', 'หมายเหตุ', 'ประวัติ (JSON)'];
+
 function doGet(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  ensureSheets(ss);
-  
-  var result = {
-    status: 'success',
-    spreadsheetUrl: ss.getUrl(),
-    transactions: readTransactions(ss),
-    budgets: readBudgets(ss),
-    budgetItems: readBudgetItems(ss),
-    savings: readSavings(ss)
-  };
-  
-  return ContentService.createTextOutput(JSON.stringify(result))
-    .setMimeType(ContentService.MimeType.JSON);
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    ensureSheets_(ss);
+    var items = readBudgetItems_(ss);
+    return jsonOutput_({
+      status: 'success',
+      spreadsheetUrl: ss.getUrl(),
+      transactions: readTransactions_(ss),
+      budgets: groupBudgets_(items),
+      budgetItems: items,
+      savings: readSavings_(ss)
+    });
+  } catch (error) {
+    return jsonOutput_({ status: 'error', message: String(error) });
+  }
 }
 
 function doPost(e) {
+  var lock = LockService.getScriptLock();
   try {
-    var raw = e.postData.contents;
-    var data = JSON.parse(raw);
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    ensureSheets(ss);
-    
+    lock.waitLock(20000);
+    var data = JSON.parse(e && e.postData && e.postData.contents || '{}');
     var action = data.action || 'syncAll';
-    
-    if (action === 'syncAll' || action === 'sync') {
-      if (data.transactions) {
-        var txRows = data.transactions.map(function(t) {
-          return [t.id, t.date, t.time || '', t.type === 'income' ? 'รายรับ' : 'รายจ่าย', t.category, t.title, Number(t.amount) || 0, t.note || '', t.createdAt || ''];
+    if (action !== 'syncAll' && action !== 'sync') throw new Error('Unsupported action');
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    ensureSheets_(ss);
+    if (Array.isArray(data.transactions)) writeRows_(ss.getSheetByName(TRANSACTIONS_SHEET), TRANSACTION_HEADERS,
+      data.transactions.map(function(t) {
+        return [t.id || '', t.date || '', t.time || '', t.type === 'income' ? 'รายรับ' : 'รายจ่าย', t.category || '', t.title || '', Number(t.amount) || 0, t.note || '', t.createdAt || ''];
+      })
+    );
+
+    var budgetItems = [];
+    if (Array.isArray(data.budgets)) {
+      data.budgets.forEach(function(budget) {
+        (budget.items || []).forEach(function(item) {
+          budgetItems.push(Object.assign({}, item, { category: budget.category }));
         });
-        overwriteSheet(ss, 'Transactions', ['รหัส (ID)', 'วันที่', 'เวลา', 'ประเภท', 'หมวดหมู่', 'รายการ', 'จำนวนเงิน (บาท)', 'หมายเหตุ', 'เวลาที่บันทึก'], txRows);
-      }
-      
-      if (data.budgets) {
-        var bRows = data.budgets.map(function(b) {
-          return [b.category, Number(b.totalPlanned) || 0, JSON.stringify(b.items || [])];
-        });
-        overwriteSheet(ss, 'Budgets', ['หมวดหมู่', 'งบประมาณที่วางแผน (บาท)', 'รายการย่อย (JSON)'], bRows);
-      }
-      
-      if (data.savings) {
-        var sRows = data.savings.map(function(s) {
-          return [s.id, s.title, Number(s.targetAmount) || 0, Number(s.currentAmount) || 0, Number(s.monthlyPlan) || 0, s.notes || '', JSON.stringify(s.history || [])];
-        });
-        overwriteSheet(ss, 'Savings', ['รหัสเป้าหมาย', 'ชื่อเป้าหมาย', 'เป้าหมายรวม (บาท)', 'ยอดสะสมปัจจุบัน (บาท)', 'แผนออมต่อเดือน (บาท)', 'หมายเหตุ', 'ประวัติการฝาก (JSON)'], sRows);
-      }
-      return createResponse({ status: 'success', message: 'ซิงค์ข้อมูลทั้งหมดสำเร็จ' });
+      });
+    } else if (Array.isArray(data.budgetItems)) {
+      budgetItems = data.budgetItems;
     }
-    
-    return createResponse({ status: 'success', message: 'ดำเนินการสำเร็จ' });
-  } catch (err) {
-    return createResponse({ status: 'error', message: err.toString() });
+    if (Array.isArray(data.budgets) || Array.isArray(data.budgetItems)) writeBudgetItems_(ss, budgetItems);
+
+    if (Array.isArray(data.savings)) writeRows_(ss.getSheetByName(SAVINGS_SHEET), SAVINGS_HEADERS,
+      data.savings.map(function(goal) {
+        return [goal.id || '', goal.title || '', Number(goal.targetAmount) || 0, Number(goal.currentAmount) || 0, Number(goal.monthlyPlan) || 0, goal.notes || '', JSON.stringify(goal.history || [])];
+      })
+    );
+
+    return jsonOutput_({ status: 'success', message: 'ซิงค์ข้อมูลทั้งหมดสำเร็จ' });
+  } catch (error) {
+    return jsonOutput_({ status: 'error', message: String(error) });
+  } finally {
+    if (lock.hasLock()) lock.releaseLock();
   }
 }
 
-function ensureSheets(ss) {
-  var names = ['Transactions', 'Budgets', 'Savings'];
-  names.forEach(function(name) {
-    var s = ss.getSheetByName(name);
-    if (!s) {
-      s = ss.insertSheet(name);
-      if (name === 'Transactions') {
-        s.appendRow(['รหัส (ID)', 'วันที่', 'เวลา', 'ประเภท', 'หมวดหมู่', 'รายการ', 'จำนวนเงิน (บาท)', 'หมายเหตุ', 'เวลาที่บันทึก']);
-      } else if (name === 'Budgets') {
-        s.appendRow(['หมวดหมู่', 'งบประมาณที่วางแผน (บาท)', 'รายการย่อย (JSON)']);
-      } else if (name === 'Savings') {
-        s.appendRow(['รหัสเป้าหมาย', 'ชื่อเป้าหมาย', 'เป้าหมายรวม (บาท)', 'ยอดสะสมปัจจุบัน (บาท)', 'แผนออมต่อเดือน (บาท)', 'หมายเหตุ', 'ประวัติการฝาก (JSON)']);
-      }
-      s.getRange(1, 1, 1, s.getLastColumn()).setFontWeight('bold').setBackground('#E8F5E9');
-    }
-  });
+function ensureSheets_(ss) {
+  ensureSheet_(ss, TRANSACTIONS_SHEET, TRANSACTION_HEADERS);
+  ensureSheet_(ss, BUDGETS_SHEET, BUDGET_HEADERS);
+  ensureSheet_(ss, SAVINGS_SHEET, SAVINGS_HEADERS);
 }
 
-function overwriteSheet(ss, sheetName, headers, rows) {
-  var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-  } else {
-    sheet.clear();
+function ensureSheet_(ss, name, headers) {
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) sheet = ss.insertSheet(name);
+  if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  if (name === BUDGETS_SHEET && sheet.getLastColumn() < headers.length) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   }
-  sheet.appendRow(headers);
-  sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#E8F5E9');
-  if (rows && rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+}
+
+function writeRows_(sheet, headers, rows) {
+  sheet.clearContents();
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  if (rows.length) sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  sheet.setFrozenRows(1);
+}
+
+function writeBudgetItems_(ss, items) {
+  var sheet = ss.getSheetByName(BUDGETS_SHEET);
+  var now = new Date().toISOString();
+  var rows = items.map(function(item) {
+    var fullItem = Object.assign({}, item, {
+      id: item.id || '',
+      name: item.name || '',
+      amount: Number(item.amount) || 0,
+      category: item.category || '',
+      updatedAt: item.updatedAt || now
+    });
+    return [fullItem.id, fullItem.category, fullItem.name, fullItem.amount, fullItem.updatedAt, JSON.stringify(fullItem)];
+  });
+  writeRows_(sheet, BUDGET_HEADERS, rows);
+
+  // Clear the old category-level sheet after its data has been replaced by the JSON-capable sheet.
+  var legacySheet = ss.getSheetByName('Budgets');
+  if (legacySheet) legacySheet.clearContents();
+}
+
+function readTransactions_(ss) {
+  var sheet = ss.getSheetByName(TRANSACTIONS_SHEET);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, 9).getValues()
+    .filter(function(row) { return row[0] !== '' && row[0] !== null; })
+    .map(function(row) {
+      return {
+        id: String(row[0]), date: normalizeDate_(row[1]), time: String(row[2] || ''),
+        type: row[3] === 'รายรับ' || row[3] === 'income' ? 'income' : 'expense',
+        category: String(row[4] || '') === 'เงินออม' ? 'หนี้สิน' : String(row[4] || ''),
+        title: String(row[5] || ''), amount: Number(row[6]) || 0,
+        note: String(row[7] || ''), createdAt: Number(row[8]) || ''
+      };
+    });
+}
+
+function readBudgetItems_(ss) {
+  var sheet = ss.getSheetByName(BUDGETS_SHEET);
+  if (sheet && sheet.getLastRow() >= 2) {
+    var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, BUDGET_HEADERS.length).getValues();
+    return rows.filter(function(row) { return row[0] !== '' && row[0] !== null; }).map(function(row) {
+      var item = {};
+      try { item = JSON.parse(row[5] || '{}'); } catch (error) {}
+      return Object.assign({}, item, {
+        id: item.id || String(row[0]),
+        category: String(row[1] || item.category || '') === 'เงินออม' ? 'หนี้สิน' : String(row[1] || item.category || ''),
+        name: item.name || String(row[2] || ''),
+        amount: Number(item.amount !== undefined ? item.amount : row[3]) || 0,
+        updatedAt: item.updatedAt || String(row[4] || '')
+      });
+    });
   }
-}
 
-function readTransactions(ss) {
-  var sheet = ss.getSheetByName('Transactions');
-  if (!sheet || sheet.getLastRow() < 2) return [];
-  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 9).getValues();
-  return rows.map(function(r) {
-    return {
-      id: String(r[0]),
-      date: String(r[1]),
-      time: String(r[2]),
-      type: r[3] === 'รายรับ' ? 'income' : 'expense',
-      category: String(r[4]),
-      title: String(r[5]),
-      amount: Number(r[6]) || 0,
-      note: String(r[7] || ''),
-      createdAt: Number(r[8]) || new Date().getTime()
-    };
-  });
-}
-
-function readBudgets(ss) {
-  var sheet = ss.getSheetByName('Budgets');
-  if (!sheet || sheet.getLastRow() < 2) return [];
-  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues();
-  return rows.map(function(r) {
-    var items = [];
-    try { items = JSON.parse(r[2]); } catch (e) {}
-    return {
-      category: String(r[0]),
-      totalPlanned: Number(r[1]) || 0,
-      items: items
-    };
-  });
-}
-
-function readBudgetItems(ss) {
-  var sheet = ss.getSheetByName('Budgets');
-  if (!sheet || sheet.getLastRow() < 2) return [];
-  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues();
-  var allItems = [];
-  rows.forEach(function(r) {
+  // Backward compatibility: read old Budgets rows containing a JSON array of items.
+  var legacySheet = ss.getSheetByName('Budgets');
+  if (!legacySheet || legacySheet.getLastRow() < 2) return [];
+  var legacyRows = legacySheet.getRange(2, 1, legacySheet.getLastRow() - 1, 3).getValues();
+  var items = [];
+  legacyRows.forEach(function(row) {
     try {
-      var items = JSON.parse(r[2]);
-      if (Array.isArray(items)) {
-        items.forEach(function(i) {
-          allItems.push({
-            id: i.id,
-            category: String(r[0]),
-            name: i.name,
-            amount: Number(i.amount) || 0
-          });
-        });
-      }
-    } catch(e) {}
+      JSON.parse(row[2] || '[]').forEach(function(item) {
+        items.push(Object.assign({}, item, { category: row[0] }));
+      });
+    } catch (error) {}
   });
-  return allItems;
+  return items;
 }
 
-function readSavings(ss) {
-  var sheet = ss.getSheetByName('Savings');
-  if (!sheet || sheet.getLastRow() < 2) return [];
-  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 7).getValues();
-  return rows.map(function(r) {
-    var history = [];
-    try { history = JSON.parse(r[6]); } catch (e) {}
+function groupBudgets_(items) {
+  var groups = {};
+  items.forEach(function(item) {
+    var category = item.category || 'ค่าใช้จ่ายอื่นๆ';
+    if (category === 'เงินออม') category = 'หนี้สิน';
+    if (!groups[category]) groups[category] = [];
+    groups[category].push(item);
+  });
+  return Object.keys(groups).map(function(category) {
+    var categoryItems = groups[category];
     return {
-      id: String(r[0]),
-      title: String(r[1]),
-      targetAmount: Number(r[2]) || 0,
-      currentAmount: Number(r[3]) || 0,
-      monthlyPlan: Number(r[4]) || 0,
-      notes: String(r[5] || ''),
-      history: history
+      category: category,
+      items: categoryItems,
+      totalPlanned: categoryItems.reduce(function(total, item) { return total + (Number(item.amount) || 0); }, 0)
     };
   });
 }
 
-function createResponse(data) {
+function readSavings_(ss) {
+  var sheet = ss.getSheetByName(SAVINGS_SHEET);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, 7).getValues()
+    .filter(function(row) { return row[0] !== '' && row[0] !== null; })
+    .map(function(row) {
+      var history = [];
+      try { history = JSON.parse(row[6] || '[]'); } catch (error) {}
+      return {
+        id: String(row[0]), title: String(row[1] || ''), targetAmount: Number(row[2]) || 0,
+        currentAmount: Number(row[3]) || 0, monthlyPlan: Number(row[4]) || 0,
+        notes: String(row[5] || ''), history: history
+      };
+    });
+}
+
+function normalizeDate_(value) {
+  if (value instanceof Date) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  var text = String(value || '');
+  return /^\\d{4}-\\d{2}-\\d{2}$/.test(text) ? text : text.substring(0, 10);
+}
+
+function jsonOutput_(data) {
   return ContentService.createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
 }
@@ -336,7 +370,7 @@ export async function fetchFromGoogleSheet(): Promise<{
         date: normalizeSheetDate(String(t.date || '')),
         time: normalizeSheetTime(String(t.time || '')),
         type: t.type === 'income' || t.type === 'รายรับ' ? 'income' : 'expense',
-        category: String(t.category || 'ค่าใช้จ่ายอื่นๆ'),
+        category: String(t.category || 'ค่าใช้จ่ายอื่นๆ') === 'เงินออม' ? 'หนี้สิน' : String(t.category || 'ค่าใช้จ่ายอื่นๆ'),
         title: String(t.title || 'รายการ'),
         amount: Number(t.amount) || 0,
         note: t.note ? String(t.note) : undefined,
@@ -349,12 +383,17 @@ export async function fetchFromGoogleSheet(): Promise<{
         parsedBudgets = json.budgets.map((b: any) => {
           let items = Array.isArray(b.items) ? b.items : [];
           return {
-            category: b.category,
+          category: b.category === 'เงินออม' ? 'หนี้สิน' : b.category,
             totalPlanned: Number(b.totalPlanned) || 0,
             items: items.map((i: any) => ({
+              ...i,
               id: String(i.id || `bi-${Date.now()}`),
               name: String(i.name || ''),
               amount: Number(i.amount) || 0,
+              icon: i.icon ? String(i.icon) : undefined,
+              planType: i.planType,
+              planMonth: i.planMonth,
+              planAmounts: i.planAmounts && typeof i.planAmounts === 'object' ? i.planAmounts : undefined,
             })),
           };
         });
@@ -362,12 +401,17 @@ export async function fetchFromGoogleSheet(): Promise<{
         // Group budgetItems by category
         const groupMap: Record<string, any[]> = {};
         for (const item of json.budgetItems) {
-          const cat = item.category || 'ค่าใช้จ่ายอื่นๆ';
+          const cat = item.category === 'เงินออม' ? 'หนี้สิน' : item.category || 'ค่าใช้จ่ายอื่นๆ';
           if (!groupMap[cat]) groupMap[cat] = [];
           groupMap[cat].push({
+            ...item,
             id: String(item.id || `bi-${Date.now()}`),
             name: String(item.name || ''),
             amount: Number(item.amount) || 0,
+            icon: item.icon ? String(item.icon) : undefined,
+            planType: item.planType,
+            planMonth: item.planMonth,
+            planAmounts: item.planAmounts && typeof item.planAmounts === 'object' ? item.planAmounts : undefined,
           });
         }
         parsedBudgets = EXPENSE_CATEGORIES.map((cat) => {

@@ -6,7 +6,7 @@ import {
   Film,
   HeartPulse,
   ShoppingBag,
-  PiggyBank,
+  CreditCard,
   MoreHorizontal,
   Briefcase,
   Gift,
@@ -86,15 +86,15 @@ export function getCategoryInfo(categoryName: string): CategoryInfo {
         borderColor: 'border-amber-200',
         progressColor: 'bg-amber-500',
       };
-    case 'เงินออม':
+    case 'หนี้สิน':
       return {
         name: categoryName,
-        icon: <PiggyBank className="w-4 h-4" />,
-        emoji: '🐷',
-        bgLight: 'bg-emerald-50',
-        textColor: 'text-emerald-700',
-        borderColor: 'border-emerald-200',
-        progressColor: 'bg-emerald-500',
+        icon: <CreditCard className="w-4 h-4" />,
+        emoji: '💳',
+        bgLight: 'bg-rose-50',
+        textColor: 'text-rose-700',
+        borderColor: 'border-rose-200',
+        progressColor: 'bg-rose-500',
       };
     case 'ค่าใช้จ่ายอื่นๆ':
       return {

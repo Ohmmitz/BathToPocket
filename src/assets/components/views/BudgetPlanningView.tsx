@@ -1,23 +1,20 @@
-import React, { useState } from 'react';
-import { 
-  Target, 
-  Plus, 
-  Trash2, 
-  Edit3, 
-  Check, 
-  X, 
-  FileSpreadsheet, 
-  ChevronDown, 
-  ChevronUp, 
-  DollarSign,
-  AlertCircle
+import React, { useRef, useState } from 'react';
+import {
+  Target,
+  Plus,
+  Trash2,
+  Edit3,
+  Check,
+  X,
+  AlertCircle,
 } from 'lucide-react';
-import { 
-  CategoryBudget, 
-  BudgetItem, 
-  EXPENSE_CATEGORIES, 
-  ExpenseCategory, 
-  calculateBudgetTotal 
+import {
+  CategoryBudget,
+  BudgetItem,
+  EXPENSE_CATEGORIES,
+  ExpenseCategory,
+  calculateBudgetTotal,
+  getBudgetItemAmount,
 } from '../../utils/finance.ts';
 import { getCategoryInfo } from '../../utils/categoryHelpers.tsx';
 
@@ -27,399 +24,507 @@ interface BudgetPlanningViewProps {
   isSyncing: boolean;
 }
 
+type BudgetItemDraft = Omit<BudgetItem, 'id'>;
+type PlanChoice = 'monthly' | 'six-month';
+
+const iconImports = import.meta.glob('../../icon-optimized/*.png', {
+  eager: true,
+  import: 'default',
+  query: '?url',
+}) as Record<string, string>;
+
+const availableIcons = Object.entries(iconImports)
+  .map(([path, src]) => {
+    const file = path.split('/').pop() || '';
+    return {
+      file,
+      src,
+      label: file.replace(/^icon_/, '').replace(/\.png$/i, '').replace(/[_-]/g, ' '),
+    };
+  })
+  .sort((a, b) => a.label.localeCompare(b.label));
+
+function monthValue(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function monthLabel(value: string, style: 'long' | 'short' = 'long'): string {
+  const [year, month] = value.split('-').map(Number);
+  return new Date(year, month - 1, 1).toLocaleDateString('th-TH-u-ca-gregory', {
+    month: style,
+    year: 'numeric',
+  });
+}
+
+function getSixMonths(startMonth: string): string[] {
+  const [year, month] = startMonth.split('-').map(Number);
+  return Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(year, month - 1 + index, 1);
+    return monthValue(date);
+  });
+}
+
+function BudgetItemForm({
+  item,
+  months,
+  selectedMonth,
+  planStartMonth = selectedMonth,
+  onSave,
+  onCancel,
+}: {
+  item?: BudgetItem;
+  months: string[];
+  selectedMonth: string;
+  planStartMonth?: string;
+  onSave: (draft: BudgetItemDraft) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const initialPlanType = item?.planType === 'none' ? 'none' : item?.planType === 'six-month' ? 'six-month' : 'monthly';
+  const [name, setName] = useState(item?.name || '');
+  const [icon, setIcon] = useState(item?.icon || '');
+  const [hasBudget, setHasBudget] = useState(initialPlanType !== 'none');
+  const [planChoice, setPlanChoice] = useState<PlanChoice>(initialPlanType === 'six-month' ? 'six-month' : 'monthly');
+  const [amount, setAmount] = useState(() => {
+    if (!item) return '';
+    return String(getBudgetItemAmount(item, selectedMonth));
+  });
+  const [planAmounts, setPlanAmounts] = useState<Record<string, string>>(() => {
+    if (!item) return {};
+    return Object.fromEntries(months.map((month) => [
+      month,
+      item.planAmounts?.[month] !== undefined
+        ? String(item.planAmounts[month])
+        : String(item.planType === 'six-month' ? 0 : item.amount || 0),
+    ]));
+  });
+  const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      setError('กรุณาระบุชื่อรายการ');
+      return;
+    }
+
+    if (!hasBudget) {
+      setIsSaving(true);
+      await onSave({
+        name: name.trim(), icon: icon || undefined, amount: 0,
+        planType: 'none', planMonth: selectedMonth, planAmounts: {},
+      });
+      setIsSaving(false);
+      return;
+    }
+
+    if (planChoice === 'monthly') {
+      const parsedAmount = Number(amount);
+      if (amount.trim() === '' || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        setError('กรุณากรอกงบประมาณให้ถูกต้อง');
+        return;
+      }
+      setIsSaving(true);
+      await onSave({
+        name: name.trim(), icon: icon || undefined, amount: parsedAmount,
+        planType: 'monthly', planMonth: selectedMonth, planAmounts: {},
+      });
+      setIsSaving(false);
+      return;
+    }
+
+    const parsedAmounts = Object.fromEntries(months.map((month) => {
+      const value = planAmounts[month] ?? '';
+      return [month, value.trim() === '' ? 0 : Number(value)];
+    }));
+    if (Object.values(parsedAmounts).some((value) => !Number.isFinite(value) || value < 0)) {
+      setError('กรุณาตรวจสอบยอดงบประมาณทั้ง 6 เดือน');
+      return;
+    }
+    if (Object.values(parsedAmounts).every((value) => value === 0)) {
+      setError('กรุณากำหนดยอดอย่างน้อย 1 เดือน หรือปิดการตั้งงบประมาณ');
+      return;
+    }
+    setIsSaving(true);
+    await onSave({
+      name: name.trim(), icon: icon || undefined,
+      amount: parsedAmounts[months[0]] || 0,
+      planType: 'six-month', planMonth: planStartMonth, planAmounts: parsedAmounts,
+    });
+    setIsSaving(false);
+  };
+
+  return (
+    <div className="p-4 bg-snow-drift-100 rounded-2xl border border-emerald-200 space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="text-xs font-semibold text-gray-700">
+          ชื่อรายการค่าใช้จ่าย
+          <input
+            type="text"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="เช่น ค่าเดินทาง, ค่ากาแฟ"
+            className="mt-1 w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-gray-900 font-medium focus:outline-none focus:ring-1 focus:ring-apple-400"
+          />
+        </label>
+        <div>
+          <span className="text-xs font-semibold text-gray-700">ไอคอนค่าใช้จ่าย (เลือกได้)</span>
+          <div className="mt-1 flex flex-wrap gap-2 max-h-36 overflow-y-auto p-2 bg-white/70 rounded-xl border border-gray-200">
+            <button
+              type="button"
+              onClick={() => setIcon('')}
+              aria-pressed={!icon}
+              className={`w-11 h-11 rounded-lg border flex items-center justify-center text-[10px] ${!icon ? 'border-celtic-700 bg-emerald-50' : 'border-gray-200'}`}
+            >
+              ไม่มี
+            </button>
+            {availableIcons.map((option) => (
+              <button
+                key={option.file}
+                type="button"
+                onClick={() => setIcon(option.file)}
+                aria-label={`เลือกไอคอน ${option.label}`}
+                aria-pressed={icon === option.file}
+                title={option.label}
+                className={`w-11 h-11 rounded-lg border p-1.5 flex items-center justify-center ${icon === option.file ? 'border-celtic-700 bg-emerald-50' : 'border-gray-200'}`}
+              >
+                <img src={option.src} alt="" loading="lazy" className="w-full h-full object-contain" />
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <label className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/80 border border-white">
+        <span>
+          <span className="block text-xs font-bold text-celtic-800">กำหนดตัวเลขงบที่จะแพลน</span>
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          checked={hasBudget}
+          onChange={(event) => setHasBudget(event.target.checked)}
+          className="w-5 h-5 accent-emerald-700 shrink-0"
+        />
+      </label>
+
+      {hasBudget && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2 bg-snow-drift-200 p-2 rounded-full" role="group" aria-label="ระยะเวลาการวางแผนงบ">
+            <button
+              type="button"
+              onClick={() => setPlanChoice('monthly')}
+              aria-pressed={planChoice === 'monthly'}
+              className={`px-3 py-2 rounded-full border text-xs font-semibold ${planChoice === 'monthly' ? 'bg-apple-200 text-celtic-900' : 'bg-snow-drift-50 text-celtic-700'}`}
+            >
+              กำหนดงบรายเดือน
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPlanChoice('six-month');
+                setPlanAmounts((current) => Object.fromEntries(months.map((month) => [month, current[month] ?? amount])));
+              }}
+              aria-pressed={planChoice === 'six-month'}
+              className={`px-3 py-2 rounded-full border text-xs font-semibold ${planChoice === 'six-month' ? 'bg-apple-200 text-celtic-900' : 'bg-snow-drift-50 text-celtic-700'}`}
+            >
+              กำหนดล่วงหน้า
+            </button>
+          </div>
+
+          {planChoice === 'monthly' ? (
+            <label className="block text-xs font-semibold text-gray-700">
+              จำนวนงบต่อเดือน
+              <div className="relative mt-1 max-w-xs">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></span>
+                <input
+                  type="number" min="0" value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                  placeholder="0.00"
+                  className="font-onest w-full pl-4 pr-4 py-4 bg-white border border-gray-300 rounded-xl text-gray-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+            </label>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {months.map((month) => (
+                <label key={month} className="text-[11px] font-semibold text-gray-600">
+                  {monthLabel(month, 'short')}
+                  <div className="relative mt-1">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-400"></span>
+                    <input
+                      type="number" min="0" value={planAmounts[month] ?? ''}
+                      onChange={(event) => setPlanAmounts((current) => ({ ...current, [month]: event.target.value }))}
+                      placeholder="0"
+                      className="font-onest w-full pl-6 pr-2 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {error && <p className="text-xs font-medium text-rose-700" role="alert">{error}</p>}
+
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={onCancel} className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-semibold flex items-center gap-1">
+          <X className="w-3.5 h-3.5" /> ยกเลิก
+        </button>
+        <button type="button" onClick={handleSave} disabled={isSaving} className="px-3.5 py-2 bg-apple-300 hover:bg-apple-400 disabled:opacity-60 text-celtic-900 rounded-xl text-xs font-bold flex items-center gap-1">
+          <Check className="w-3.5 h-3.5" /> {isSaving ? 'กำลังบันทึก...' : item ? 'บันทึกการแก้ไข' : 'เพิ่มรายการ'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
   budgets,
   onUpdateBudgets,
   isSyncing,
 }) => {
-  // Ensure all EXPENSE_CATEGORIES exist in budgets
-  const normalizedBudgets: CategoryBudget[] = EXPENSE_CATEGORIES.map((cat) => {
-    const existing = budgets.find((b) => b.category === cat);
-    if (existing) {
-      return {
-        ...existing,
-        totalPlanned: calculateBudgetTotal(existing.items || []),
-      };
-    }
+  const today = new Date();
+  const currentMonth = monthValue(today);
+  const monthOptions = Array.from({ length: 37 }, (_, index) => {
+    const date = new Date(today.getFullYear(), today.getMonth() - 12 + index, 1);
+    const value = monthValue(date);
+    return { value, label: monthLabel(value) };
+  });
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [activeCategory, setActiveCategory] = useState<ExpenseCategory>(EXPENSE_CATEGORIES[0]);
+  const [addingCategory, setAddingCategory] = useState<ExpenseCategory | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [revealedActionItemId, setRevealedActionItemId] = useState<string | null>(null);
+  const swipeStartRef = useRef<{ itemId: string; x: number; y: number } | null>(null);
+  const sixMonths = getSixMonths(selectedMonth);
+
+  const normalizedBudgets: CategoryBudget[] = EXPENSE_CATEGORIES.map((category) => {
+    const existing = budgets.find((budget) =>
+      budget.category === category || (category === 'หนี้สิน' && String(budget.category) === 'เงินออม')
+    );
+    const items = existing?.items || [];
     return {
-      category: cat,
-      items: [],
-      totalPlanned: 0,
+      category,
+      items,
+      totalPlanned: items.length ? calculateBudgetTotal(items, selectedMonth) : Number(existing?.totalPlanned) || 0,
     };
   });
+  const selectedBudget = normalizedBudgets.find((budget) => budget.category === activeCategory) || normalizedBudgets[0];
+  const totalPlannedOverall = normalizedBudgets.reduce((sum, budget) => sum + budget.totalPlanned, 0);
 
-  const [activeCategory, setActiveCategory] = useState<ExpenseCategory>(EXPENSE_CATEGORIES[0]);
-  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
-
-  // Adding new item state
-  const [newItemName, setNewItemName] = useState('');
-  const [newItemAmount, setNewItemAmount] = useState('');
-  const [addingForCategory, setAddingForCategory] = useState<ExpenseCategory | null>(null);
-
-  // Editing item state
-  const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editAmount, setEditAmount] = useState('');
-
-  // Total overall planned budget
-  const totalPlannedOverall = normalizedBudgets.reduce((sum, b) => sum + b.totalPlanned, 0);
-
-  const toggleCategoryCollapse = (cat: string) => {
-    setCollapsedCategories(prev => ({
-      ...prev,
-      [cat]: !prev[cat],
-    }));
-  };
-
-  const handleStartAddItem = (cat: ExpenseCategory) => {
-    setAddingForCategory(cat);
-    setNewItemName('');
-    setNewItemAmount('');
+  const handleStartAddItem = () => {
     setEditingItemId(null);
+    setAddingCategory(activeCategory);
   };
 
-  const handleCancelAddItem = () => {
-    setAddingForCategory(null);
-    setNewItemName('');
-    setNewItemAmount('');
-  };
-
-  const handleSaveNewItem = async (cat: ExpenseCategory) => {
-    const amount = parseFloat(newItemAmount);
-    if (!newItemName.trim() || isNaN(amount) || amount <= 0) {
-      return;
-    }
-
-    const newItem: BudgetItem = {
-      id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      name: newItemName.trim(),
-      amount: amount,
+  const handleSaveItem = async (category: ExpenseCategory, draft: BudgetItemDraft, existingItem?: BudgetItem) => {
+    const savedItem: BudgetItem = {
+      ...draft,
+      id: existingItem?.id || `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     };
-
-    const updated = normalizedBudgets.map((b) => {
-      if (b.category === cat) {
-        const nextItems = [...(b.items || []), newItem];
-        return {
-          ...b,
-          items: nextItems,
-          totalPlanned: calculateBudgetTotal(nextItems),
-        };
-      }
-      return b;
+    const updated = normalizedBudgets.map((budget) => {
+      if (budget.category !== category) return budget;
+      const nextItems = existingItem
+        ? budget.items.map((item) => item.id === existingItem.id ? savedItem : item)
+        : [...budget.items, savedItem];
+      return { ...budget, items: nextItems, totalPlanned: calculateBudgetTotal(nextItems, selectedMonth) };
     });
-
     await onUpdateBudgets(updated);
-    handleCancelAddItem();
-  };
-
-  const handleStartEdit = (item: BudgetItem) => {
-    setEditingItemId(item.id);
-    setEditName(item.name);
-    setEditAmount(String(item.amount));
-    setAddingForCategory(null);
-  };
-
-  const handleSaveEdit = async (cat: ExpenseCategory, itemId: string) => {
-    const amount = parseFloat(editAmount);
-    if (!editName.trim() || isNaN(amount) || amount <= 0) {
-      return;
-    }
-
-    const updated = normalizedBudgets.map((b) => {
-      if (b.category === cat) {
-        const nextItems = (b.items || []).map((i) =>
-          i.id === itemId ? { ...i, name: editName.trim(), amount } : i
-        );
-        return {
-          ...b,
-          items: nextItems,
-          totalPlanned: calculateBudgetTotal(nextItems),
-        };
-      }
-      return b;
-    });
-
-    await onUpdateBudgets(updated);
+    setAddingCategory(null);
     setEditingItemId(null);
   };
 
-  const handleDeleteItem = async (cat: ExpenseCategory, itemId: string) => {
-    const updated = normalizedBudgets.map((b) => {
-      if (b.category === cat) {
-        const nextItems = (b.items || []).filter((i) => i.id !== itemId);
-        return {
-          ...b,
-          items: nextItems,
-          totalPlanned: calculateBudgetTotal(nextItems),
-        };
-      }
-      return b;
+  const handleDeleteItem = async (category: ExpenseCategory, itemId: string) => {
+    const updated = normalizedBudgets.map((budget) => {
+      if (budget.category !== category) return budget;
+      const nextItems = budget.items.filter((item) => item.id !== itemId);
+      return { ...budget, items: nextItems, totalPlanned: calculateBudgetTotal(nextItems, selectedMonth) };
     });
-
     await onUpdateBudgets(updated);
   };
 
   return (
     <div className="space-y-6 pb-20 md:pb-8">
-      {/* Title & Overall Budget Card */}
       <div className="glass-card p-5.5 rounded-3xl border border-white/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <Target className="w-5 h-5 text-emerald-800" />
-            <h1 className="text-xl font-bold text-gray-900 tracking-tight">
-              แพลนงบประมาณรายเดือน
-            </h1>
+            <h1 className="text-xl font-bold text-celtic-900">แพลนงบประมาณ</h1>
           </div>
-          <p className="text-xs text-gray-500 mt-1">
-            แยกรายการค่าใช้จ่ายย่อยในแต่ละหมวดหมู่ ระบบจะคำนวณยอดรวมของหมวดหมู่อัตโนมัติ
-          </p>
         </div>
-
-        <div className="bg-emerald-500/10 backdrop-blur-md border border-emerald-400/30 rounded-2xl p-3.5 sm:px-5 flex items-center justify-between sm:justify-end gap-4 shadow-2xs">
-          <div className="text-left sm:text-right">
-            <span className="text-[11px] font-medium text-emerald-800 block">
-              งบประมาณที่วางแผนรวมทั้งหมด
-            </span>
-            <span className="font-onest text-2xl font-black text-emerald-800 tracking-tight">
-              {totalPlannedOverall.toLocaleString('th-TH')}-.
-            </span>
-          </div>
+        <div className="flex items-center gap-4 self-stretch">
+          <label htmlFor="budget-month-select" className="text-xs text-celtic-700 font-medium">เดือน</label>
+          <select
+            id="budget-month-select"
+            value={selectedMonth}
+            onChange={(event) => setSelectedMonth(event.target.value)}
+            className="px-3.5 py-2 text-xs bg-white/80 border border-white/90 rounded-xl text-gray-800 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+          >
+            {monthOptions.map((month) => <option key={month.value} value={month.value}>{month.label}</option>)}
+          </select>
         </div>
       </div>
 
-      {/* Instructions Pill */}
-      <div className="p-3.5 bg-blue-500/10 backdrop-blur-md border border-blue-400/30 rounded-2xl text-blue-900 text-xs flex items-center gap-2.5 shadow-2xs">
+      <div className="p-3.5 bg-blue-500/10 border border-blue-400/30 rounded-2xl text-blue-900 text-xs flex items-center gap-2.5">
         <AlertCircle className="w-4 h-4 shrink-0 text-blue-600" />
-        <span>
-          💡 คุณสามารถเพิ่ม ลบ หรือแก้ไขรายการย่อยในแต่ละหมวดหมู่ได้ ยอดรวมของหมวดหมู่จะอัปเดตให้อัตโนมัติ
-        </span>
+        <span>กำหนดงบเป็นรายเดือนหรือแยกยอดล่วงหน้า 6 เดือนก็ได้ และสามารถบันทึกรายการโดยไม่ตั้งงบประมาณ</span>
       </div>
 
-      {/* Categories & Sub-items List */}
-      <div className="space-y-4">
-        {normalizedBudgets.map((categoryBudget) => {
-          const cat = categoryBudget.category;
-          const catInfo = getCategoryInfo(cat);
-          const isCollapsed = collapsedCategories[cat] ?? false;
-          const isAdding = addingForCategory === cat;
-          const items = categoryBudget.items || [];
-          const totalPlanned = categoryBudget.totalPlanned;
+      <div className="filter-tag-scroll flex flex-nowrap gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap pb-1" role="group" aria-label="เลือกหมวดหมู่งบประมาณ">
+        {EXPENSE_CATEGORIES.map((category) => (
+          <button
+            key={category}
+            type="button"
+            onClick={() => { setActiveCategory(category); setAddingCategory(null); setEditingItemId(null); }}
+            aria-pressed={activeCategory === category}
+            className={`shrink-0 px-3.5 py-2 rounded-full border text-xs font-semibold transition-colors ${
+              activeCategory === category
+                ? 'bg-apple-200 text-celtic-900'
+                : 'bg-snow-drift-100 text-celtic-700'
+            }`}
+          >
+            {category}
+          </button>
+        ))}
+      </div>
 
-          return (
-            <div
-              key={cat}
-              className="glass-card rounded-3xl border border-white/80 shadow-xs overflow-hidden transition-all duration-200"
-            >
-              {/* Category Header Row (Clickable Accordion) */}
-              <div 
-                className="p-4.5 sm:p-5 flex items-center justify-between cursor-pointer bg-white/40 hover:bg-white/70 transition-colors backdrop-blur-xs"
-                onClick={() => toggleCategoryCollapse(cat)}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`p-3 rounded-2xl ${catInfo.bgLight} ${catInfo.textColor} border ${catInfo.borderColor} shadow-2xs`}>
-                    {catInfo.icon}
-                  </div>
-                  <div>
-                    <h2 className="text-base font-bold text-gray-900">
-                      {cat}
-                    </h2>
-                    <span className="text-xs text-gray-500 font-medium">
-                      {items.length} รายการค่าใช้จ่ายที่วางแผน
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  {/* Category Total Badge */}
-                  <div className="text-right">
-                    <span className="text-[10px] uppercase font-bold text-gray-500 block">
-                      ยอดรวมหมวดหมู่นี้
-                    </span>
-                    <span className="font-onest text-base sm:text-lg font-black text-emerald-800">
-                      {totalPlanned.toLocaleString('th-TH')}-.
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className="p-2 text-gray-400 hover:text-gray-700 rounded-xl hover:bg-white/60 transition-colors"
-                    aria-label={isCollapsed ? `ขยายหมวดหมู่ ${cat}` : `ย่อหมวดหมู่ ${cat}`}
-                  >
-                    {isCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Sub-items Container */}
-              {!isCollapsed && (
-                <div className="p-4 sm:p-5 border-t border-gray-100 space-y-3">
-                  {/* Sub-item List */}
-                  {items.length === 0 && !isAdding ? (
-                    <div className="text-center py-6 bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
-                      <p className="text-xs text-gray-500 mb-2">
-                        ยังไม่มีรายการย่อยในหมวดนี้
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => handleStartAddItem(cat)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        เพิ่มรายการย่อยรายการแรก
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {items.map((item) => {
-                        const isEditing = editingItemId === item.id;
-
-                        if (isEditing) {
-                          return (
-                            <div
-                              key={item.id}
-                              className="p-3 bg-emerald-50/40 rounded-xl border border-emerald-300 flex flex-col sm:flex-row items-stretch sm:items-center gap-2"
-                            >
-                              <input
-                                type="text"
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                placeholder="ชื่อรายการย่อย"
-                                className="flex-1 px-3 py-1.5 text-xs bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                              />
-                              <div className="relative w-full sm:w-36">
-                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">-.</span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={editAmount}
-                                  onChange={(e) => setEditAmount(e.target.value)}
-                                  placeholder="จำนวนเงิน"
-                                  className="w-full pl-6 pr-3 py-1.5 text-xs bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold font-onest"
-                                />
-                              </div>
-                              <div className="flex items-center gap-1.5 self-end sm:self-auto">
-                                <button
-                                  type="button"
-                                  onClick={() => handleSaveEdit(cat, item.id)}
-                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1"
-                                >
-                                  <Check className="w-3.5 h-3.5" /> บันทึก
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingItemId(null)}
-                                  className="px-2.5 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div
-                            key={item.id}
-                            className="p-3 rounded-xl bg-gray-50/70 hover:bg-gray-50 border border-gray-200/70 flex items-center justify-between transition-colors"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                              <span className="text-xs sm:text-sm font-semibold text-gray-900">
-                                {item.name}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                              <span className="text-xs sm:text-sm font-bold text-gray-900 font-onest">
-                                {item.amount.toLocaleString('th-TH')}-.
-                              </span>
-                              <div className="flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => handleStartEdit(item)}
-                                  className="p-1.5 text-gray-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-                                  title="แก้ไขรายการย่อย"
-                                  aria-label={`แก้ไข ${item.name}`}
-                                >
-                                  <Edit3 className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteItem(cat, item.id)}
-                                  className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                                  title="ลบรายการย่อย"
-                                  aria-label={`ลบ ${item.name}`}
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Add New Sub-item Form */}
-                  {isAdding ? (
-                    <div className="p-3.5 bg-emerald-50/50 rounded-xl border border-emerald-300 space-y-2.5 animate-in fade-in duration-150">
-                      <span className="text-xs font-bold text-emerald-900 block">
-                        + เพิ่มรายการย่อยใหม่ในหมวด "{cat}"
-                      </span>
-                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                        <input
-                          type="text"
-                          required
-                          value={newItemName}
-                          onChange={(e) => setNewItemName(e.target.value)}
-                          placeholder="ชื่อรายการ เช่น ค่าน้ำมัน, ค่ากาแฟ, ค่าเน็ต"
-                          className="flex-1 px-3 py-2 text-xs bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                        />
-                        <div className="relative w-full sm:w-40">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">-.</span>
-                          <input
-                            type="number"
-                            min="0"
-                            required
-                            value={newItemAmount}
-                            onChange={(e) => setNewItemAmount(e.target.value)}
-                            placeholder="จำนวนเงิน"
-                            className="w-full pl-6 pr-3 py-2 text-xs bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold font-onest"
-                          />
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleSaveNewItem(cat)}
-                            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors"
-                          >
-                            <Check className="w-3.5 h-3.5" /> เพิ่มรายการ
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleCancelAddItem}
-                            className="px-3 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-medium transition-colors"
-                          >
-                            ยกเลิก
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleStartAddItem(cat)}
-                      className="w-full py-2.5 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/40 text-gray-600 hover:text-emerald-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
-                    >
-                      <Plus className="w-4 h-4" />
-                      เพิ่มรายการค่าใช้จ่ายย่อยในหมวดนี้
-                    </button>
-                  )}
-                </div>
-              )}
+      <section className="glass-card rounded-3xl border border-white/80 shadow-xs overflow-hidden">
+        <div className="p-4.5 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/40">
+          <div className="flex items-center gap-3">
+            <div className={`p-3 rounded-2xl ${getCategoryInfo(activeCategory).bgLight} ${getCategoryInfo(activeCategory).textColor}`}>
+              {getCategoryInfo(activeCategory).icon}
             </div>
-          );
-        })}
-      </div>
+            <div>
+              <h5 className="text-base font-bold text-celtic-900">{activeCategory}</h5>
+              <span className="text-xs text-celtic-700">{selectedBudget.items.length} รายการ · {monthLabel(selectedMonth)}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 sm:gap-5">
+            <div className="text-right">
+              <span className="text-xs font-bold text-celtic-700 block">ยอดงบหมวดนี้</span>
+              <span className="font-onest text-xl font-black text-emerald-800">{selectedBudget.totalPlanned.toLocaleString('th-TH')}</span>
+            </div>
+            <button type="button" onClick={handleStartAddItem} className="px-4 py-4 bg-apple-200 hover:bg-apple-300 text-celtic-900 rounded-full text-xs font-bold flex items-center gap-1.5">
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-4 sm:p-5 border-t border-gray-100 space-y-3">
+          {selectedBudget.items.length === 0 && !addingCategory ? (
+            <div className="text-center py-8 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+              <p className="text-xs text-gray-500 mb-3">ยังไม่มีรายการในหมวดนี้</p>
+              <button type="button" onClick={handleStartAddItem} className="px-3.5 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-xl hover:bg-emerald-100">
+                <Plus className="w-3.5 h-3.5 inline mr-1" /> เพิ่มรายการแรก
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {selectedBudget.items.map((item) => {
+                const icon = availableIcons.find((option) => option.file === item.icon);
+                const displayAmount = getBudgetItemAmount(item, selectedMonth);
+                const isEditing = editingItemId === item.id;
+                return (
+                  <div key={item.id} className="relative rounded-2xl bg-gray-50/70 border border-gray-200/70 overflow-hidden">
+                    {isEditing ? (
+                      <BudgetItemForm
+                        key={`edit-${item.id}-${selectedMonth}`}
+                        item={item}
+                        months={item.planType === 'six-month' && item.planMonth ? getSixMonths(item.planMonth) : sixMonths}
+                        selectedMonth={selectedMonth}
+                        planStartMonth={item.planType === 'six-month' ? item.planMonth || selectedMonth : selectedMonth}
+                        onCancel={() => setEditingItemId(null)}
+                        onSave={(draft) => handleSaveItem(activeCategory, draft, item)}
+                      />
+                    ) : (
+                      (() => {
+                        const actionsRevealed = revealedActionItemId === item.id;
+                        const editButton = (
+                          <button type="button" onClick={() => { setRevealedActionItemId(null); setEditingItemId(item.id); }} className="p-2 text-celtic-700 hover:text-celtic-900 hover:bg-apple-200 rounded-lg" aria-label={`แก้ไข ${item.name}`} title="แก้ไขรายการ">
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                        );
+                        const deleteButton = (
+                          <button type="button" onClick={() => { setRevealedActionItemId(null); void handleDeleteItem(activeCategory, item.id); }} className="p-2 text-celtic-700 hover:text-snow-drift-100 hover:bg-stiletto-800 rounded-lg" aria-label={`ลบ ${item.name}`} title="ลบรายการ">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        );
+                        return (
+                          <>
+                            <div
+                              className={`relative z-10 flex items-center justify-between gap-3 p-3 bg-gray-50/70 transition-transform duration-200 ease-out touch-pan-y ${actionsRevealed ? '-translate-x-24' : 'translate-x-0'} sm:translate-x-0`}
+                              onTouchStart={(event) => {
+                                const touch = event.touches[0];
+                                swipeStartRef.current = { itemId: item.id, x: touch.clientX, y: touch.clientY };
+                              }}
+                              onTouchEnd={(event) => {
+                                const start = swipeStartRef.current;
+                                swipeStartRef.current = null;
+                                if (!start || start.itemId !== item.id) return;
+                                const touch = event.changedTouches[0];
+                                const deltaX = touch.clientX - start.x;
+                                const deltaY = touch.clientY - start.y;
+                                if (Math.abs(deltaX) > 44 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+                                  setRevealedActionItemId(deltaX < 0 ? item.id : null);
+                                }
+                              }}
+                              onTouchCancel={() => { swipeStartRef.current = null; }}
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center shrink-0 overflow-hidden">
+                                  {icon ? <img src={icon.src} alt="" loading="lazy" className="w-full h-full p-1.5 object-contain" /> : <span className="text-emerald-700">{getCategoryInfo(activeCategory).icon}</span>}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-gray-900 truncate">{item.name}</p>
+                                  <p className="text-[11px] text-gray-500">
+                                    {item.planType === 'none' ? 'ยังไม่กำหนดงบ' : item.planType === 'six-month' ? 'แผน 6 เดือน' : 'แผนรายเดือน · ใช้ทุกเดือน'}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                                <button
+                                  type="button"
+                                  className="font-onest text-xs sm:text-sm font-bold text-gray-900 hover:text-apple-400 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
+                                  onClick={() => setRevealedActionItemId(actionsRevealed ? null : item.id)}
+                                  aria-label={actionsRevealed ? `ซ่อนไอคอนแก้ไขและลบ ${item.name}` : `แสดงไอคอนแก้ไขและลบ ${item.name}`}
+                                  aria-expanded={actionsRevealed}
+                                  aria-controls={`budget-actions-${item.id}`}
+                                  title={actionsRevealed ? 'ซ่อนการดำเนินการ' : 'แตะตัวเลขเพื่อแสดงการดำเนินการ'}
+                                >
+                                  {item.planType === 'none' ? 'ไม่ตั้งงบ' : displayAmount.toLocaleString('th-TH')}
+                                </button>
+                                <div className="hidden sm:flex items-center gap-1">
+                                  {editButton}
+                                  {deleteButton}
+                                </div>
+                              </div>
+                            </div>
+                            <div id={`budget-actions-${item.id}`} className={`absolute inset-y-0 right-0 flex items-center gap-1 px-2 sm:hidden ${actionsRevealed ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} aria-hidden={!actionsRevealed}>
+                              {React.cloneElement(editButton, { tabIndex: actionsRevealed ? 0 : -1 })}
+                              {React.cloneElement(deleteButton, { tabIndex: actionsRevealed ? 0 : -1 })}
+                            </div>
+                          </>
+                        );
+                      })()
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {addingCategory === activeCategory && (
+            <BudgetItemForm
+              key={`add-${activeCategory}-${selectedMonth}`}
+              months={sixMonths}
+              selectedMonth={selectedMonth}
+              onCancel={() => setAddingCategory(null)}
+              onSave={(draft) => handleSaveItem(activeCategory, draft)}
+            />
+          )}
+        </div>
+      </section>
+
+      {isSyncing && <p className="text-center text-xs text-gray-500">กำลังซิงค์ข้อมูล...</p>}
     </div>
   );
 };

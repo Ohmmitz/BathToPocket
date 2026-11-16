@@ -9,15 +9,9 @@ import { HistoryView } from './assets/components/views/HistoryView.tsx';
 import { UndoModal } from './assets/components/ConfirmationModal.tsx';
 import { GoogleSheetModal } from './assets/components/GoogleSheetModal.tsx';
 import {
-  calculateFinancialSummary,
   getLatestTransaction,
 } from './assets/utils/finance.ts';
 import type { Transaction, CategoryBudget, SavingGoal } from './assets/utils/finance.ts';
-import {
-  INITIAL_TRANSACTIONS,
-  INITIAL_BUDGETS,
-  INITIAL_SAVINGS,
-} from './assets/data/initialData.ts';
 import {
   getStoredScriptUrl,
   getStoredLastSynced,
@@ -40,22 +34,32 @@ export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const restored: Transaction[] = JSON.parse(saved);
+        return restored.map((transaction) => transaction.category === 'เงินออม'
+          ? { ...transaction, category: 'หนี้สิน' }
+          : transaction);
+      }
     } catch (e) {
       console.error(e);
     }
-    return INITIAL_TRANSACTIONS;
+    return [];
   });
 
   // Budgets State
   const [budgets, setBudgets] = useState<CategoryBudget[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.BUDGETS);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const restored: CategoryBudget[] = JSON.parse(saved);
+        return restored.map((budget) => String(budget.category) === 'เงินออม'
+          ? { ...budget, category: 'หนี้สิน' }
+          : budget);
+      }
     } catch (e) {
       console.error(e);
     }
-    return INITIAL_BUDGETS;
+    return [];
   });
 
   // Savings State
@@ -66,7 +70,7 @@ export default function App() {
     } catch (e) {
       console.error(e);
     }
-    return INITIAL_SAVINGS;
+    return [];
   });
 
   // Google Sheets state
@@ -114,19 +118,22 @@ export default function App() {
     }
   }, [savings]);
 
-  // Total balance and savings calculation
-  const { balance } = useMemo(() => calculateFinancialSummary(transactions), [transactions]);
-  const totalSavings = useMemo(() => {
-    return savings.reduce((sum, g) => sum + (Number(g.currentAmount) || 0), 0);
-  }, [savings]);
-
   const latestTransaction = useMemo(() => getLatestTransaction(transactions), [transactions]);
   const isGoogleSheetConfigured = Boolean(scriptUrl && scriptUrl.trim());
 
   // Helper to build payload with both budgets and flattened budgetItems
   const getFullPayload = useCallback(
     (txList = transactions, budgetList = budgets, savingList = savings) => {
-      const budgetItems: Array<{ id: string; category: string; name: string; amount: number }> = [];
+      const budgetItems: Array<{
+        id: string;
+        category: string;
+        name: string;
+        amount: number;
+        icon?: string;
+        planType?: string;
+        planMonth?: string;
+        planAmounts?: Record<string, number>;
+      }> = [];
       for (const b of budgetList) {
         if (Array.isArray(b.items)) {
           for (const item of b.items) {
@@ -135,6 +142,10 @@ export default function App() {
               category: b.category,
               name: item.name,
               amount: Number(item.amount) || 0,
+              icon: item.icon,
+              planType: item.planType,
+              planMonth: item.planMonth,
+              planAmounts: item.planAmounts,
             });
           }
         }
@@ -287,11 +298,7 @@ export default function App() {
 
     if (isGoogleSheetConfigured) {
       setIsSyncing(true);
-      sendToGoogleSheet('syncAll', {
-        transactions,
-        budgets: updatedBudgets,
-        savings,
-      })
+      sendToGoogleSheet('syncAll', getFullPayload(transactions, updatedBudgets, savings))
         .then(() => {
           const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
           setLastSynced(timeStr);
@@ -331,12 +338,12 @@ export default function App() {
 
     setSavings(updatedSavings);
 
-    // Also auto-record as expense transaction under category 'เงินออม'
+    // Also auto-record savings deposits under the renamed category
     const targetGoal = savings.find((g) => g.id === goalId);
     const savingTx: Transaction = {
       id: `tx-save-${Date.now()}`,
       type: 'expense',
-      category: 'เงินออม',
+      category: 'หนี้สิน',
       title: `ออมเงิน: ${targetGoal?.title || 'เงินเก็บ'}`,
       amount,
       date: depositDate,
@@ -350,11 +357,7 @@ export default function App() {
 
     if (isGoogleSheetConfigured) {
       setIsSyncing(true);
-      sendToGoogleSheet('syncAll', {
-        transactions: nextTransactions,
-        budgets,
-        savings: updatedSavings,
-      })
+      sendToGoogleSheet('syncAll', getFullPayload(nextTransactions, budgets, updatedSavings))
         .then(() => {
           const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
           setLastSynced(timeStr);
@@ -388,11 +391,7 @@ export default function App() {
 
     if (isGoogleSheetConfigured) {
       setIsSyncing(true);
-      sendToGoogleSheet('syncAll', {
-        transactions,
-        budgets,
-        savings: nextSavings,
-      })
+      sendToGoogleSheet('syncAll', getFullPayload(transactions, budgets, nextSavings))
         .finally(() => setIsSyncing(false));
     }
 
@@ -406,11 +405,7 @@ export default function App() {
 
     if (isGoogleSheetConfigured) {
       setIsSyncing(true);
-      sendToGoogleSheet('syncAll', {
-        transactions,
-        budgets,
-        savings: nextSavings,
-      })
+      sendToGoogleSheet('syncAll', getFullPayload(transactions, budgets, nextSavings))
         .finally(() => setIsSyncing(false));
     }
 
@@ -418,17 +413,10 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F3F8F5] relative flex flex-col text-gray-900 selection:bg-emerald-500 selection:text-white">
-      {/* Liquid Glass Ambient Backdrops */}
-      <div className="liquid-glass-bg" aria-hidden="true">
-        <div className="liquid-glass-blob-1" />
-        <div className="liquid-glass-blob-2" />
-        <div className="liquid-glass-blob-3" />
-      </div>
-
-      {/* Toast Notification with Glass Styling */}
+    <div className="min-h-screen relative flex flex-col bg-snow-drift-50 text-celtic-900 selection:bg-apple-200 selection:text-celtic-900">
+      {/* Toast notification */}
       {toast && (
-        <div className="fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4.5 py-3 rounded-2xl glass-island text-gray-900 shadow-xl text-xs font-semibold animate-in slide-in-from-top-4 duration-200 border border-white/90">
+        <div className="fixed top-3 left-3 right-3 sm:left-auto sm:right-5 sm:top-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl glass-island text-gray-900 text-sm animate-in slide-in-from-top-4 duration-200">
           {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
           {toast.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
           {toast.type === 'info' && <Info className="w-4 h-4 text-amber-600 shrink-0" />}
@@ -446,7 +434,6 @@ export default function App() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        balance={balance}
       />
 
       {/* Main Container */}
@@ -455,7 +442,6 @@ export default function App() {
           <ExpenseSummaryView
             transactions={transactions}
             budgets={budgets}
-            totalSavings={totalSavings}
             onNavigateToBudget={() => setActiveTab('budget')}
             onNavigateToAdd={() => setActiveTab('add')}
           />

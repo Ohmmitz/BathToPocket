@@ -94,21 +94,18 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-20 md:pb-8">
+    <div className="space-y-0 pb-20 md:pb-8">
       {/* Top Header Card */}
-      <div className="glass-card p-5.5 rounded-3xl border border-white/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="glass-card p-4 rounded-3xl border border-white/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <div className="p-2.5 rounded-2xl bg-teal-500/15 text-teal-800 border border-teal-300/40 shadow-2xs">
               <PiggyBank className="w-5 h-5" />
             </div>
             <h1 className="text-xl font-bold text-gray-900 tracking-tight">
-              เงินออม & เป้าหมายเงินเก็บ
+              เงินออม
             </h1>
           </div>
-          <p className="text-xs text-gray-500 mt-1">
-            บันทึกเงินออมประจำเดือน ติดตามเป้าหมาย และสร้างความมั่นคงทางการเงิน
-          </p>
         </div>
 
         <button
@@ -121,28 +118,28 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
       </div>
 
       {/* Savings Summary Banner */}
-      <div className="bg-gradient-to-br from-emerald-800 to-teal-900 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden border border-white/20">
+      <div className="bg-snow-drift-100 text-celtic-900 rounded-2xl p-4 sm:p-6 relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <span className="text-xs uppercase font-medium tracking-wider text-emerald-200">
+            <span className="text-sm tracking-wide text-celtic-700">
               ยอดเงินออมสะสมรวมทุกเป้าหมาย
             </span>
-            <div className="font-onest text-3xl sm:text-4xl font-extrabold tracking-tight mt-1 text-white">
+            <div className="font-onest text-3xl sm:text-4xl tracking-tight mt-1 text-celtic-900">
               {totalAccumulatedSavings.toLocaleString('th-TH')}-.
             </div>
-            <span className="text-xs text-emerald-200/80 mt-1 block">
+            <span className="text-sm text-celtic-700 mt-1 block">
               จากเป้าหมายรวม <span className="font-onest">{totalTargetSavings.toLocaleString('th-TH')} -.</span>
             </span>
           </div>
 
           <div className="w-full md:w-64 space-y-2">
-            <div className="flex justify-between text-xs font-medium text-emerald-100">
+            <div className="flex justify-between text-sm text-celtic-700">
               <span>ความคืบหน้ารวม</span>
               <span className="font-onest font-bold">{overallPercentage}%</span>
             </div>
-            <div className="w-full bg-emerald-950/60 rounded-full h-3 overflow-hidden p-0.5 border border-emerald-600/30">
+            <div className="w-full bg-snow-drift-50 rounded-full h-3 overflow-hidden">
               <div
-                className="bg-emerald-400 h-full rounded-full transition-all duration-500 shadow-sm shadow-emerald-400/50"
+                className="bg-apple-400 h-full rounded-full transition-all duration-500"
                 style={{ width: `${overallPercentage}%` }}
               />
             </div>

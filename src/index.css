@@ -1,121 +1,300 @@
 @import "tailwindcss";
 
+@theme {
+  /* Custom Tailwind color scales used by the BahtToPocket design system. */
+  --color-snow-drift-50: #F6F8F5;
+  --color-snow-drift-100: #E1E9DE;
+  --color-snow-drift-200: #C3D2BD;
+  --color-celtic-700: #275540;
+  --color-celtic-800: #214434;
+  --color-celtic-900: #183126;
+  --color-apple-200: #AFFF97;
+  --color-apple-300: #7DFC5A;
+  --color-apple-400: #52F229;
+  --color-stiletto-800: #90242D;
+  --color-stiletto-900: #78242B;
+
+  --font-sans: "Anuphan", sans-serif;
+  --font-onest: "Onest", sans-serif;
+
+  /* Keep existing Tailwind utilities on the new palette. */
+  --color-white: var(--color-snow-drift-50);
+  --color-gray-50: var(--color-snow-drift-50);
+  --color-gray-100: var(--color-snow-drift-100);
+  --color-gray-200: var(--color-snow-drift-200);
+  --color-gray-300: var(--color-celtic-700);
+  --color-gray-400: var(--color-celtic-700);
+  --color-gray-500: var(--color-celtic-700);
+  --color-gray-600: var(--color-celtic-700);
+  --color-gray-700: var(--color-celtic-700);
+  --color-gray-800: var(--color-celtic-800);
+  --color-gray-900: var(--color-celtic-900);
+
+  --color-emerald-50: var(--color-snow-drift-100);
+  --color-emerald-100: var(--color-snow-drift-200);
+  --color-emerald-200: var(--color-apple-200);
+  --color-emerald-300: var(--color-apple-300);
+  --color-emerald-400: var(--color-apple-400);
+  --color-emerald-500: var(--color-apple-400);
+  --color-emerald-600: var(--color-apple-400);
+  --color-emerald-700: var(--color-apple-400);
+  --color-emerald-800: var(--color-celtic-700);
+  --color-emerald-900: var(--color-celtic-800);
+  --color-emerald-950: var(--color-celtic-900);
+
+  --color-rose-50: var(--color-snow-drift-50);
+  --color-rose-100: var(--color-snow-drift-100);
+  --color-rose-200: var(--color-snow-drift-200);
+  --color-rose-300: var(--color-stiletto-800);
+  --color-rose-400: var(--color-stiletto-800);
+  --color-rose-500: var(--color-stiletto-800);
+  --color-rose-600: var(--color-stiletto-900);
+  --color-rose-700: var(--color-stiletto-900);
+  --color-rose-800: var(--color-stiletto-800);
+  --color-rose-900: var(--color-stiletto-800);
+  --color-red-50: var(--color-rose-50);
+  --color-red-100: var(--color-rose-100);
+  --color-red-200: var(--color-rose-200);
+  --color-red-300: var(--color-rose-300);
+  --color-red-400: var(--color-rose-400);
+  --color-red-500: var(--color-rose-500);
+  --color-red-600: var(--color-stiletto-800);
+  --color-red-700: var(--color-stiletto-800);
+  --color-red-800: var(--color-stiletto-900);
+  --color-red-900: var(--color-stiletto-900);
+
+  --color-teal-50: var(--color-snow-drift-50);
+  --color-teal-100: var(--color-snow-drift-100);
+  --color-teal-200: var(--color-apple-200);
+  --color-teal-300: var(--color-apple-300);
+  --color-teal-400: var(--color-apple-400);
+  --color-teal-500: var(--color-apple-400);
+  --color-teal-600: var(--color-apple-400);
+  --color-teal-700: var(--color-apple-400);
+  --color-teal-800: var(--color-celtic-700);
+  --color-teal-900: var(--color-celtic-800);
+  --color-teal-950: var(--color-celtic-900);
+
+  --color-amber-50: var(--color-snow-drift-50);
+  --color-amber-100: var(--color-apple-200);
+  --color-amber-200: var(--color-apple-200);
+  --color-amber-300: var(--color-apple-300);
+  --color-amber-400: var(--color-apple-400);
+  --color-amber-500: var(--color-apple-400);
+  --color-amber-600: var(--color-apple-400);
+  --color-amber-700: var(--color-celtic-700);
+  --color-amber-800: var(--color-celtic-800);
+  --color-amber-900: var(--color-celtic-900);
+
+  --color-blue-50: var(--color-snow-drift-50);
+  --color-blue-100: var(--color-snow-drift-100);
+  --color-blue-200: var(--color-snow-drift-200);
+  --color-blue-300: var(--color-apple-200);
+  --color-blue-400: var(--color-apple-300);
+  --color-blue-500: var(--color-apple-400);
+  --color-blue-600: var(--color-apple-400);
+  --color-blue-700: var(--color-apple-400);
+  --color-blue-800: var(--color-celtic-800);
+  --color-blue-900: var(--color-celtic-900);
+}
+
+:root {
+  font-family: "Anuphan", sans-serif;
+  color: var(--color-celtic-900);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: #F6F8F5;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: #F6F8F5;
+  color: var(--color-celtic-900);
+  font-family: "Anuphan", sans-serif;
+  font-weight: 400;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  font-weight: 500;
+}
+
 .font-onest {
-  font-family: 'Onest', sans-serif;
+  font-family: "Onest", sans-serif;
   font-variant-numeric: tabular-nums;
+  font-weight: 500 !important;
 }
 
-@layer base {
-  body {
-    font-family: 'Anuphan', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    min-height: 100vh;
-    background-color: #F3F8F5;
-  }
+.filter-tag-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #eaf1eb transparent;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Liquid Glass Ambient Backdrops */
+/* The Thai type scale uses only Anuphan 300 and 400. */
+[class*="font-medium"],
+[class*="font-semibold"],
+[class*="font-bold"],
+[class*="font-extrabold"] {
+  font-weight: 500 !important;
+}
+
+h1, h2, h3, h4, h5, h6, p, small, caption {
+  font-family: "Anuphan", sans-serif;
+}
+
+h1 { font-size: clamp(2rem, 4vw, 3rem) !important; font-weight: 400 !important; }
+h2 { font-size: clamp(1.75rem, 3.2vw, 2.5rem) !important; font-weight: 400 !important; }
+h3 { font-size: clamp(1.5rem, 2.6vw, 2rem) !important; font-weight: 400 !important; }
+h4 { font-size: 1.75rem !important; font-weight: 400 !important; }
+h5 { font-size: 1.5rem !important; font-weight: 400 !important; }
+h6 { font-size: 1.125rem !important; font-weight: 400 !important; }
+p { font-size: 1rem !important; font-weight: 300 !important; }
+small { font-size: 0.875rem !important; font-weight: 300 !important; }
+caption { font-size: 0.75rem !important; font-weight: 300 !important; }
+
+/* Text uses Celtic; small/supporting text uses 700, body emphasis 800, and strongest text 900. */
+.text-emerald-500,
+.text-emerald-600,
+.text-emerald-700,
+.text-amber-700,
+.text-blue-700 {
+  color: var(--color-celtic-700) !important;
+}
+
+.text-emerald-800,
+.text-teal-800,
+.text-blue-800,
+.text-amber-800 {
+  color: var(--color-celtic-800) !important;
+}
+
+.text-emerald-900,
+.text-emerald-950,
+.text-teal-900,
+.text-teal-950,
+.text-blue-900,
+.text-amber-900 {
+  color: var(--color-celtic-900) !important;
+}
+
+/* Icons take Apple accents while remaining consistent with Celtic text. */
+.lucide.text-gray-300,
+.lucide.text-gray-400,
+.lucide.text-gray-500,
+.lucide.text-emerald-500,
+.lucide.text-emerald-600,
+.lucide.text-emerald-700,
+.lucide.text-blue-500,
+.lucide.text-blue-600,
+.lucide.text-amber-500,
+.lucide.text-amber-600 {
+  color: var(--color-apple-400) !important;
+}
+
+/* Primary actions pair the Apple surface with readable Celtic text. */
+.text-white[class*="bg-emerald-"],
+.text-white[class*="bg-amber-"],
+.text-white[class*="bg-blue-"] {
+  color: var(--color-celtic-900) !important;
+}
+
+/* Plain surfaces: no glass effects, strokes, or shadows. */
 .liquid-glass-bg {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  overflow: hidden;
+  display: none;
 }
 
-.liquid-glass-blob-1 {
-  position: absolute;
-  top: -10%;
-  left: 15%;
-  width: 50vw;
-  height: 50vw;
-  max-width: 650px;
-  max-height: 650px;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.12) 0%, rgba(52, 211, 153, 0.04) 50%, transparent 70%);
-  filter: blur(60px);
-  border-radius: 9999px;
-  animation: floatSlow1 18s ease-in-out infinite alternate;
+.glass-surface{
+  background: #F6F8F5 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
-.liquid-glass-blob-2 {
-  position: absolute;
-  top: 35%;
-  right: -5%;
-  width: 45vw;
-  height: 45vw;
-  max-width: 550px;
-  max-height: 550px;
-  background: radial-gradient(circle, rgba(20, 184, 166, 0.1) 0%, rgba(110, 231, 183, 0.03) 50%, transparent 70%);
-  filter: blur(70px);
-  border-radius: 9999px;
-  animation: floatSlow2 22s ease-in-out infinite alternate;
-}
-
-.liquid-glass-blob-3 {
-  position: absolute;
-  bottom: -10%;
-  left: 5%;
-  width: 55vw;
-  height: 55vw;
-  max-width: 700px;
-  max-height: 700px;
-  background: radial-gradient(circle, rgba(5, 150, 105, 0.08) 0%, rgba(167, 243, 208, 0.03) 60%, transparent 80%);
-  filter: blur(80px);
-  border-radius: 9999px;
-  animation: floatSlow3 26s ease-in-out infinite alternate;
-}
-
-@keyframes floatSlow1 {
-  0% { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(40px, 30px) scale(1.08); }
-}
-
-@keyframes floatSlow2 {
-  0% { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(-30px, 40px) scale(0.95); }
-}
-
-@keyframes floatSlow3 {
-  0% { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(25px, -35px) scale(1.05); }
-}
-
-/* Liquid Glass Surface Classes */
-.glass-surface {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 0 10px 30px -5px rgba(5, 150, 105, 0.05), inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
-}
-
-.glass-card {
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.88);
-  box-shadow: 0 12px 32px -4px rgba(5, 150, 105, 0.06), 0 4px 12px -2px rgba(0, 0, 0, 0.02), inset 0 1px 2px 0 rgba(255, 255, 255, 0.95);
+.glass-card{
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .glass-island {
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
-  border: 1.5px solid rgba(255, 255, 255, 0.92);
-  box-shadow: 0 16px 40px -6px rgba(6, 78, 59, 0.22), 0 4px 16px -2px rgba(6, 78, 59, 0.1), inset 0 1px 2px 0 rgba(255, 255, 255, 1);
+  background: #E1E9DE !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
-/* Custom scrollbars */
+
+
+[class~="shadow-xs"],
+[class~="shadow-2xs"],
+[class~="shadow-sm"],
+[class~="shadow-md"],
+[class~="shadow-lg"],
+[class~="shadow-xl"],
+[class~="shadow-2xl"] {
+  box-shadow: none !important;
+}
+
+[class*="backdrop-blur"] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Dividers and outlines are replaced with spacing and soft surface contrast. */
+.glass-card[class*="border"],
+.glass-surface[class*="border"],
+.glass-island[class*="border"] {
+  border-color: transparent !important;
+}
+
+[class~="border"],
+[class*="border-"] {
+  border-color: transparent !important;
+}
+
+[class*="divide-"] > :not(:first-child) {
+  border-color: transparent !important;
+}
+
+::selection {
+  color: #122d1e;
+  background: #b4d9ab;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.4);
   border-radius: 9999px;
+  background: #eaf1eb;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.6);
+  background: #b4d9ab;
 }

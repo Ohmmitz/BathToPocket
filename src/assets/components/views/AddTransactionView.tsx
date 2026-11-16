@@ -8,7 +8,8 @@ import {
   Check, 
   RotateCcw,
   Sparkles,
-  Info
+  Info,
+  MoreHorizontal,
 } from 'lucide-react';
 import { 
   Transaction, 
@@ -16,7 +17,9 @@ import {
   EXPENSE_CATEGORIES, 
   INCOME_CATEGORIES, 
   CategoryBudget, 
+  BudgetItem,
   calculateCategorySpent, 
+  calculateBudgetTotal,
   getBudgetProgress 
 } from '../../utils/finance.ts';
 import { getCategoryInfo } from '../../utils/categoryHelpers.tsx';
@@ -37,7 +40,7 @@ const CATEGORY_SUGGESTIONS: Record<string, string[]> = {
   'ความบันเทิงและพักผ่อน': ['ดูหนัง', 'ซื้อเกม', 'สังสรรค์กับเพื่อน', 'คอนเสิร์ต / อีเวนต์'],
   'สุขภาพและยา': ['ซื้อยา', 'วิตามิน / อาหารเสริม', 'หาหมอ / คลินิก', 'ค่าทำฟัน'],
   'ของใช้และช็อปปิ้ง': ['ของใช้ในบ้าน', 'เสื้อผ้า', 'เครื่องสำอาง', 'ของช็อปออนไลน์'],
-  'เงินออม': ['โอนเข้าบัญชีเงินออม', 'ซื้อกองทุน', 'ออมทอง', 'เงินสำรองฉุกเฉิน'],
+  'หนี้สิน': ['ชำระหนี้บัตรเครดิต', 'ผ่อนชำระหนี้', 'ดอกเบี้ยเงินกู้', 'ชำระหนี้อื่นๆ'],
   'ค่าใช้จ่ายอื่นๆ': ['ซ่อมของ', 'ทำบุญ', 'ของขวัญ', 'ค่าใช้จ่ายเบ็ดเตล็ด'],
   // Incomes
   'เงินเดือน / ค่าจ้าง': ['เงินเดือน', 'ค่าจ้างรายวัน', 'OT / ค่าล่วงเวลา'],
@@ -46,6 +49,16 @@ const CATEGORY_SUGGESTIONS: Record<string, string[]> = {
   'ลงทุน / ปันผล': ['เงินปันผลหุ้น', 'ดอกเบี้ยเงินฝาก', 'กำไรจากการลงทุน'],
   'อื่นๆ': ['เงินคืน / คืนภาษี', 'ผู้ใหญ่ให้มา', 'ลาภลอย'],
 };
+
+const budgetIconImports = import.meta.glob('../../icon-optimized/*.png', {
+  eager: true,
+  import: 'default',
+  query: '?url',
+}) as Record<string, string>;
+const budgetIconUrls = Object.fromEntries(Object.entries(budgetIconImports).map(([path, url]) => [
+  path.split('/').pop() || '',
+  url,
+])) as Record<string, string>;
 
 export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
   onAddTransaction,
@@ -56,6 +69,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
 }) => {
   const [type, setType] = useState<TransactionType>('expense');
   const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[0]);
+  const [selectedBudgetItem, setSelectedBudgetItem] = useState<BudgetItem | null>(null);
   const [title, setTitle] = useState('');
   const [amountStr, setAmountStr] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -75,6 +89,8 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
   // Switch category list when type changes
   const handleTypeChange = (newType: TransactionType) => {
     setType(newType);
+    setSelectedBudgetItem(null);
+    setTitle('');
     if (newType === 'expense') {
       setCategory(EXPENSE_CATEGORIES[0]);
     } else {
@@ -117,8 +133,10 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
     let warningMsg: string | null = null;
     if (type === 'expense') {
       const budgetObj = budgets.find((b) => b.category === category);
-      const planned = budgetObj ? budgetObj.totalPlanned : 0;
       const monthPrefix = date.substring(0, 7);
+      const planned = budgetObj
+        ? budgetObj.items?.length ? calculateBudgetTotal(budgetObj.items, monthPrefix) : budgetObj.totalPlanned
+        : 0;
       const currentSpent = calculateCategorySpent(category, currentTransactions, monthPrefix);
       const futureSpent = currentSpent + amount;
       const progress = getBudgetProgress(futureSpent, planned);
@@ -155,16 +173,19 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
 
   const activeCategories = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
   const suggestions = CATEGORY_SUGGESTIONS[category] || [];
+  const plannedItems = type === 'expense'
+    ? budgets.find((budget) => budget.category === category)?.items || []
+    : [];
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-20 md:pb-8">
       {/* Page Title & Quick Undo button */}
       <div className="flex items-center justify-between glass-card p-5 rounded-3xl border border-white/80 shadow-xs">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">
-            บันทึกค่าใช้จ่าย / รายรับ
+          <h1 className="text-xl font-bold text-celtic-900 tracking-tight">
+            บันทึกค่าใช้จ่ายและรายรับ
           </h1>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-celtic-700">
             ระบบจะแสดงหน้าสรุปข้อมูลทุกครั้งก่อนกดยืนยันบันทึก
           </p>
         </div>
@@ -172,26 +193,25 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
           <button
             type="button"
             onClick={onOpenUndoModal}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-semibold bg-amber-500/15 text-amber-900 hover:bg-amber-500/20 border border-amber-300 transition-all shadow-2xs backdrop-blur-md active:scale-95"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold bg-snow-drift-100 text-celtic-900 hover:bg-amber-500/20 transition-all shadow-2xs backdrop-blur-md active:scale-95"
             title="ย้อนรายการล่าสุดที่เพิ่งบันทึก"
           >
-            <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
+            <RotateCcw className="w-3.5 h-3.5 text-celtic-900" />
             <span className="hidden sm:inline">ย้อนรายการล่าสุด</span>
             <span className="sm:hidden">ย้อน</span>
           </button>
         )}
       </div>
-
       {/* Main Input Form */}
       <form onSubmit={handleReviewAndSubmit} className="glass-card rounded-3xl p-6 sm:p-7 border border-white/80 shadow-xs space-y-6">
         {/* Toggle Type: Expense / Income */}
-        <div className="flex bg-white/50 backdrop-blur-md p-1.5 rounded-2xl border border-white/80 shadow-2xs">
+        <div className="flex bg-snow-drift-100 p-1.5 rounded-full">
           <button
             type="button"
             onClick={() => handleTypeChange('expense')}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all duration-200 ${
+            className={`flex-1 py-2.5 rounded-full text-sm font-bold flex items-center justify-center gap-2 transition-all duration-200 ${
               type === 'expense'
-                ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
+                ? 'bg-apple-300 text-celtic-900'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -201,9 +221,9 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
           <button
             type="button"
             onClick={() => handleTypeChange('income')}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all duration-200 ${
+            className={`flex-1 py-2.4 rounded-full text-sm font-bold flex items-center justify-center gap-2 transition-all duration-200 ${
               type === 'income'
-                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                ? 'bg-apple-300 text-celtic-900'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -212,10 +232,104 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
           </button>
         </div>
 
+        {/* Category filter tags */}
+        <div>
+          <label className="block text-xs font-bold uppercase text-celtic-700 mb-4">
+            หมวดหมู่{type === 'expense' ? 'ค่าใช้จ่าย' : 'รายรับ'}
+          </label>
+          <div className="filter-tag-scroll flex flex-nowrap gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap pb-1" role="group" aria-label={`เลือกหมวดหมู่${type === 'expense' ? 'ค่าใช้จ่าย' : 'รายรับ'}`}>
+            {activeCategories.map((cat) => {
+              const isSelected = category === cat;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => {
+                    setCategory(cat);
+                    setSelectedBudgetItem(null);
+                    setTitle('');
+                  }}
+                  aria-pressed={isSelected}
+                  className={`shrink-0 px-3.5 py-2 rounded-full border text-xs font-semibold transition-all ${
+                    isSelected
+                      ? type === 'expense'
+                        ? 'bg-apple-300 text-celtic-900'
+                        : 'bg-apple-300 text-celtic-900'
+                      : 'bg-snow-drift-100 text-celtic-900'
+                  }`}
+                >
+                  {cat}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        {/* Budget item icon grid */}
+        {type === 'expense' && (
+          <div>
+            <label className="block text-xs font-bold uppercase text-celtic-700 mb-2">
+              เลือกรายการค่าใช้จ่าย
+            </label>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+              {plannedItems.map((item) => {
+                const isSelected = selectedBudgetItem?.id === item.id;
+                const iconUrl = item.icon ? budgetIconUrls[item.icon] : undefined;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedBudgetItem(item);
+                      setTitle(item.name);
+                    }}
+                    aria-pressed={isSelected}
+                    className={`min-h-32 rounded-4xl border p-4 flex flex-col items-center justify-center gap-2 text-center transition-all ${
+                      isSelected
+                        ? 'bg-snow-drift-100'
+                        : 'bg-transparent'
+                    }`}
+                  >
+                    <span className="w-24 h-24 flex items-center justify-center overflow-hidden">
+                      {iconUrl ? (
+                        <img src={iconUrl} alt="" className="w-full h-full p-1.5 object-contain" />
+                      ) : (
+                        <span className="text-4xl" aria-hidden="true">{getCategoryInfo(category).emoji}</span>
+                      )}
+                    </span>
+                    <span className={`text-xs font-semibold ${isSelected ? 'text-celtic-900' : 'text-gray-800'}`}>
+                      {item.name}
+                    </span>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedBudgetItem(null);
+                  setTitle('');
+                }}
+                aria-pressed={selectedBudgetItem === null}
+                className={`min-h-32 rounded-4xl border p-4 flex flex-col items-center justify-center gap-2 text-center transition-all ${
+                  selectedBudgetItem === null
+                    ? 'bg-snow-drift-100'
+                    : 'bg-transparent'
+                }`}
+              >
+                <span className="w-24 h-24 flex items-center justify-center overflow-hidden">
+                  <MoreHorizontal className="w-10 h-10 text-gray-400" />
+                </span>
+                <span className="text-xs font-semibold leading-snug text-celtic-900">รายการอื่น</span>
+              </button>
+            </div>
+            {plannedItems.length === 0 && (
+              <p className="text-[11px] text-gray-500 mt-2">หมวดนี้ยังไม่มีรายการในแพลงบ เลือก “รายการอื่น” แล้วกรอกชื่อรายการด้านล่างได้</p>
+            )}
+          </div>
+        )}
         {/* Amount Input */}
         <div>
-          <label htmlFor="tx-amount" className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">
-            จำนวนเงิน (บาท) *
+          <label htmlFor="tx-amount" className="block text-xs font-bold uppercase text-celtic-700 mb-4">
+            จำนวนเงิน (บาท)
           </label>
           <div className="relative">
             <input
@@ -227,19 +341,17 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
               value={amountStr}
               onChange={(e) => setAmountStr(e.target.value)}
               placeholder="0.00"
-              className="w-full pl-4 pr-4 py-4 bg-white/70 backdrop-blur-md border border-white/90 rounded-2xl text-3xl font-extrabold text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-onest shadow-xs"
+              className="w-full pl-4 pr-4 py-4 bg-transparent rounded-2xl text-4xl font-extrabold text-celtic-900 focus:bg-snow-drift-100 focus:outline-none transition-all font-onest"
             />
           </div>
-
-          {/* Quick Amount Chips */}
-          <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
-            <span className="text-[11px] text-gray-500 font-medium mr-1">เพิ่มเร็ว:</span>
-            {[50, 100, 500, 1000].map((val) => (
+          <div className="flex flex-wrap items-center gap-1 mt-4">
+            <span className="text-xs text-celtic-700 font-medium mr-1">เพิ่มเร็ว</span>
+            {[10,50,100].map((val) => (
               <button
                 key={val}
                 type="button"
                 onClick={() => handleQuickAddAmount(val)}
-                className="px-3 py-1 text-xs font-semibold bg-white/70 hover:bg-white border border-white/80 text-gray-700 rounded-xl transition-all shadow-2xs backdrop-blur-xs active:scale-95"
+                className="px-2 py-1 text-xs hover:bg-snow-drift-200 border border-white/80 text-gray-700 rounded-full transition-all "
               >
                 +{val.toLocaleString()}
               </button>
@@ -248,66 +360,17 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
               <button
                 type="button"
                 onClick={() => setAmountStr('')}
-                className="px-2.5 py-1 text-xs font-medium text-gray-400 hover:text-rose-600 transition-colors ml-auto"
+                className="px-2.5 py-1 text-xs text-gray-400 hover:text-rose-600 transition-colors ml-auto"
               >
                 ล้างยอด
               </button>
             )}
           </div>
         </div>
-
-        {/* Category Selection */}
-        <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
-            หมวดหมู่ {type === 'expense' ? 'ค่าใช้จ่าย' : 'รายรับ'} *
-          </label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {activeCategories.map((cat) => {
-              const isSelected = category === cat;
-              const catInfo = getCategoryInfo(cat);
-
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setCategory(cat)}
-                  className={`p-3 rounded-2xl border text-center flex flex-col items-center justify-between transition-all duration-200 backdrop-blur-sm relative group ${
-                    isSelected
-                      ? 'bg-emerald-500/15 border-emerald-500/80 ring-2 ring-emerald-500/30 shadow-xs scale-[1.02]'
-                      : 'bg-white/60 border-white/80 hover:bg-white/90'
-                  }`}
-                >
-                  {/* Selected checkmark indicator */}
-                  {isSelected && (
-                    <span className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs">
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
-                    </span>
-                  )}
-
-                  {/* Span ที่อยู่ด้านนอกไอคอนมีขนาดกว้างเท่ากับ Button พร้อมไอคอนอิโมจิขนาดใหญ่ */}
-                  <span className={`w-full py-3 px-2 rounded-xl flex items-center justify-center text-3xl sm:text-4xl mb-2 transition-all duration-200 ${
-                    isSelected
-                      ? 'bg-emerald-500/20 shadow-xs scale-105'
-                      : `${catInfo.bgLight} shadow-2xs group-hover:scale-105`
-                  }`}>
-                    {catInfo.emoji}
-                  </span>
-
-                  <span className={`text-xs font-semibold leading-snug line-clamp-1 w-full text-center ${
-                    isSelected ? 'text-emerald-950 font-bold' : 'text-gray-800'
-                  }`}>
-                    {cat}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         {/* Title Input & Quick Suggestions */}
         <div>
-          <label htmlFor="tx-title" className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">
-            ชื่อรายการ *
+          <label htmlFor="tx-title" className="block text-xs font-bold uppercase text-celtic-700 mb-4">
+            ชื่อรายการ
           </label>
           <input
             id="tx-title"
@@ -316,13 +379,12 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder={`เช่น ${suggestions[0] || 'อาหารเช้า, ช็อปปิ้ง'}`}
-            className="w-full px-4 py-3 bg-white/70 backdrop-blur-md border border-white/90 rounded-2xl text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all shadow-2xs"
+            className="w-full px-4 py-3 bg-transparent border border-white/90 rounded-2xl text-sm font-medium text-celtic-900 focus:bg-snow-drift-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all shadow-2xs"
           />
-
           {/* Quick Suggestions for current category */}
-          {suggestions.length > 0 && (
+          {type === 'income' && suggestions.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
-              <span className="text-[11px] text-gray-500 flex items-center gap-1">
+              <span className="text-xs text-celtic-800 flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-amber-500" />
                 แนะนำ:
               </span>
@@ -331,7 +393,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
                   key={sug}
                   type="button"
                   onClick={() => setTitle(sug)}
-                  className="px-2.5 py-1 text-xs bg-white/70 hover:bg-emerald-500/20 hover:text-emerald-900 text-gray-700 rounded-lg transition-colors border border-white/80 shadow-2xs"
+                  className="px-2.5 py-1 text-xs bg-snow-drift-100 text-celtic-900 rounded-full transition-colors"
                 >
                   {sug}
                 </button>
@@ -339,11 +401,10 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
             </div>
           )}
         </div>
-
         {/* Date and Time Fields */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
-            <label htmlFor="tx-date" className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+            <label htmlFor="tx-date" className="block text-xs font-bold uppercase text-celtic-700 mb-4">
               วันที่
             </label>
             <div className="relative">
@@ -354,12 +415,12 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
                 required
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-white/70 backdrop-blur-md border border-white/90 rounded-2xl text-xs font-medium text-gray-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                className="w-full pl-9 pr-3 py-2.5 bg-transparent border border-white/90 rounded-2xl text-xs font-medium text-celtic-900 focus:bg-snow-drift-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
               />
             </div>
           </div>
           <div>
-            <label htmlFor="tx-time" className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+            <label htmlFor="tx-time" className="block text-xs font-bold uppercase text-celtic-700 mb-4">
               เวลา
             </label>
             <div className="relative">
@@ -369,15 +430,14 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-white/70 backdrop-blur-md border border-white/90 rounded-2xl text-xs font-medium text-gray-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                className="w-full pl-9 pr-3 py-2.5 bg-transparent border border-white/90 rounded-2xl text-xs font-medium text-celtic-900 focus:bg-snow-drift-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
               />
             </div>
           </div>
         </div>
-
         {/* Optional Note */}
         <div>
-          <label htmlFor="tx-note" className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+          <label htmlFor="tx-note" className="block text-xs font-bold uppercase text-celtic-700 mb-4">
             หมายเหตุเพิ่มเติม (ถ้ามี)
           </label>
           <div className="relative">
@@ -388,11 +448,10 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="บันทึกรายละเอียดเพิ่มเติม เช่น ร้านค้า, ซื้อให้ใคร, เลขใบเสร็จ..."
-              className="w-full pl-9 pr-3 py-2.5 bg-white/70 backdrop-blur-md border border-white/90 rounded-2xl text-xs font-medium text-gray-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+              className="w-full pl-9 pr-3 py-2.5 bg-transparent border border-white/90 rounded-2xl text-xs font-medium text-celtic-900 focus:bg-snow-drift-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
             />
           </div>
         </div>
-
         {/* Validation error notice */}
         {validationError && (
           <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2">
@@ -400,12 +459,11 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
             <span>{validationError}</span>
           </div>
         )}
-
         {/* Review and Submit Button */}
         <div className="pt-2">
           <button
             type="submit"
-            className="w-full py-3.5 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2"
+            className="w-full py-3.5 px-6 rounded-full bg-apple-300 hover:bg-apple-400 active:scale-[0.99] text-celtic-900 font-bold text-base transition-all flex items-center justify-center gap-2"
           >
             <Check className="w-5 h-5" />
             ตรวจสอบและบันทึกข้อมูล
@@ -415,13 +473,13 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
           </p>
         </div>
       </form>
-
       {/* Mandatory Summary Confirmation Modal */}
       <TransactionSummaryModal
         isOpen={isSummaryOpen}
         onClose={() => setIsSummaryOpen(false)}
         onConfirm={handleConfirmSave}
         transaction={pendingTx}
+        itemIconUrl={selectedBudgetItem?.icon ? budgetIconUrls[selectedBudgetItem.icon] : undefined}
         budgetWarningMessage={budgetWarningMessage}
         isSubmitting={isSubmitting}
       />

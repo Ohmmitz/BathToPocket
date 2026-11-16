@@ -7,7 +7,7 @@ export const EXPENSE_CATEGORIES = [
   'ความบันเทิงและพักผ่อน',
   'สุขภาพและยา',
   'ของใช้และช็อปปิ้ง',
-  'เงินออม',
+  'หนี้สิน',
   'ค่าใช้จ่ายอื่นๆ',
 ] as const;
 
@@ -39,6 +39,10 @@ export interface BudgetItem {
   id: string;
   name: string;
   amount: number;
+  icon?: string;
+  planType?: 'monthly' | 'single' | 'six-month' | 'none';
+  planMonth?: string;
+  planAmounts?: Record<string, number>;
 }
 
 export interface CategoryBudget {
@@ -68,8 +72,16 @@ export type BudgetStatus = 'normal' | 'warning' | 'exceeded';
 /**
  * Calculate the total planned amount from an array of budget sub-items
  */
-export function calculateBudgetTotal(items: BudgetItem[]): number {
-  return items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+export function getBudgetItemAmount(item: BudgetItem, month?: string): number {
+  if (item.planType === 'none') return 0;
+  if (item.planType === 'six-month' && month) {
+    return Number(item.planAmounts?.[month]) || 0;
+  }
+  return Number(item.amount) || 0;
+}
+
+export function calculateBudgetTotal(items: BudgetItem[], month?: string): number {
+  return items.reduce((sum, item) => sum + getBudgetItemAmount(item, month), 0);
 }
 
 /**
@@ -83,7 +95,8 @@ export function calculateCategorySpent(
   return transactions
     .filter((tx) => {
       if (tx.type !== 'expense') return false;
-      if (tx.category !== category) return false;
+      const transactionCategory = tx.category === 'เงินออม' ? 'หนี้สิน' : tx.category;
+      if (transactionCategory !== category) return false;
       if (monthPrefix && !tx.date.startsWith(monthPrefix)) return false;
       return true;
     })
