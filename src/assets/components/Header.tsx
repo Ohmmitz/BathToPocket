@@ -95,7 +95,7 @@ export const MobileNav: React.FC<{ activeTab: TabType; setActiveTab: (tab: TabTy
   return (
     <nav 
       aria-label="เมนูหลักสำหรับมือถือ" 
-      className="md:hidden fixed bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-[360px]"
+      className="md:hidden fixed bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-[360px]"
     >
       {/* One evenly spaced row of icon-only navigation buttons */}
       <div className="glass-island rounded-full px-1.5 py-1.5 flex items-center justify-around bg-snow-drift-100">

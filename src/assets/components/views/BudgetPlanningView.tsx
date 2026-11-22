@@ -215,7 +215,7 @@ function BudgetItemForm({
               aria-pressed={planChoice === 'monthly'}
               className={`px-3 py-2 rounded-full border text-xs font-semibold ${planChoice === 'monthly' ? 'bg-apple-200 text-celtic-900' : 'bg-snow-drift-50 text-celtic-700'}`}
             >
-              กำหนดงบรายเดือน
+              เดือนเดียว
             </button>
             <button
               type="button"
@@ -226,7 +226,7 @@ function BudgetItemForm({
               aria-pressed={planChoice === 'six-month'}
               className={`px-3 py-2 rounded-full border text-xs font-semibold ${planChoice === 'six-month' ? 'bg-apple-200 text-celtic-900' : 'bg-snow-drift-50 text-celtic-700'}`}
             >
-              กำหนดล่วงหน้า
+              ล่วงหน้า
             </button>
           </div>
 
@@ -295,7 +295,9 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
   const [addingCategory, setAddingCategory] = useState<ExpenseCategory | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [revealedActionItemId, setRevealedActionItemId] = useState<string | null>(null);
+  const [isAddActionRevealed, setIsAddActionRevealed] = useState(false);
   const swipeStartRef = useRef<{ itemId: string; x: number; y: number } | null>(null);
+  const categorySwipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const sixMonths = getSixMonths(selectedMonth);
 
   const normalizedBudgets: CategoryBudget[] = EXPENSE_CATEGORIES.map((category) => {
@@ -374,7 +376,7 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
           <button
             key={category}
             type="button"
-            onClick={() => { setActiveCategory(category); setAddingCategory(null); setEditingItemId(null); }}
+            onClick={() => { setActiveCategory(category); setAddingCategory(null); setEditingItemId(null); setIsAddActionRevealed(false); }}
             aria-pressed={activeCategory === category}
             className={`shrink-0 px-3.5 py-2 rounded-full border text-xs font-semibold transition-colors ${
               activeCategory === category
@@ -388,24 +390,58 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
       </div>
 
       <section className="glass-card rounded-3xl border border-white/80 shadow-xs overflow-hidden">
-        <div className="p-4.5 flex flex-row sm:items-center justify-between gap-3 bg-white/40">
-          <div className="flex items-center gap-3">
-            <div className={`p-3 rounded-2xl ${getCategoryInfo(activeCategory).bgLight} ${getCategoryInfo(activeCategory).textColor}`}>
-              {getCategoryInfo(activeCategory).icon}
+        <div className="relative overflow-hidden bg-white/40">
+          <button
+            type="button"
+            onClick={() => { setIsAddActionRevealed(false); handleStartAddItem(); }}
+            className={`absolute right-3 top-1/2 z-0 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl bg-apple-200 text-celtic-900 transition-opacity hover:bg-apple-300 ${isAddActionRevealed ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+            aria-label={`เพิ่มรายการในหมวด${activeCategory}`}
+            aria-hidden={!isAddActionRevealed}
+            tabIndex={isAddActionRevealed ? 0 : -1}
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+          <div
+            className={`relative z-10 flex flex-row items-center justify-between gap-3 bg-white/40 p-4.5 transition-transform duration-200 ease-out touch-pan-y ${isAddActionRevealed ? '-translate-x-14' : 'translate-x-0'}`}
+            onTouchStart={(event) => {
+              const touch = event.touches[0];
+              categorySwipeStartRef.current = { x: touch.clientX, y: touch.clientY };
+            }}
+            onTouchEnd={(event) => {
+              const start = categorySwipeStartRef.current;
+              categorySwipeStartRef.current = null;
+              if (!start) return;
+              const touch = event.changedTouches[0];
+              const deltaX = touch.clientX - start.x;
+              const deltaY = touch.clientY - start.y;
+              if (Math.abs(deltaX) > 44 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+                setIsAddActionRevealed(deltaX < 0);
+              }
+            }}
+            onTouchCancel={() => { categorySwipeStartRef.current = null; }}
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <div className={`p-3 rounded-2xl ${getCategoryInfo(activeCategory).bgLight} ${getCategoryInfo(activeCategory).textColor}`}>
+                {getCategoryInfo(activeCategory).icon}
+              </div>
+              <div className="min-w-0">
+                <h6 className="text-base font-bold text-celtic-900">{activeCategory}</h6>
+                <span className="text-xs text-celtic-700">{selectedBudget.items.length} รายการ · {monthLabel(selectedMonth)}</span>
+              </div>
             </div>
-            <div>
-              <h5 className="text-base font-bold text-celtic-900">{activeCategory}</h5>
-              <span className="text-xs text-celtic-700">{selectedBudget.items.length} รายการ · {monthLabel(selectedMonth)}</span>
+            <div className="flex shrink-0 items-center">
+              <button
+                type="button"
+                onClick={() => setIsAddActionRevealed((revealed) => !revealed)}
+                className="rounded-lg px-2 py-1 text-right text-celtic-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
+                aria-label={isAddActionRevealed ? 'ซ่อนปุ่มเพิ่มรายการ' : 'แสดงปุ่มเพิ่มรายการ'}
+                aria-expanded={isAddActionRevealed}
+                title="แตะยอดงบหมวดนี้เพื่อแสดงปุ่มเพิ่มรายการ"
+              >
+                <span className="block text-xs font-bold text-celtic-700">ยอดงบหมวดนี้</span>
+                <span className="font-onest block text-xl font-medium text-celtic-900">{selectedBudget.totalPlanned.toLocaleString('th-TH')}</span>
+              </button>
             </div>
-          </div>
-          <div className="flex items-center gap-5">
-            <div className="text-right">
-              <span className="text-xs font-bold text-celtic-700 block">ยอดงบหมวดนี้</span>
-              <span className="font-onest text-xl font-black text-emerald-800">{selectedBudget.totalPlanned.toLocaleString('th-TH')}</span>
-            </div>
-            <button type="button" onClick={handleStartAddItem} className="px-4 py-4 bg-apple-200 hover:bg-apple-300 text-celtic-900 rounded-2xl text-xs font-bold flex items-center gap-1.5">
-              <Plus className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
