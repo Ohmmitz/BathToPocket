@@ -130,6 +130,42 @@ textarea {
   font: inherit;
 }
 
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]),
+textarea {
+  border: 0 !important;
+  border-bottom: 1px solid var(--color-snow-drift-200) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transition: border-color 180ms ease;
+}
+
+select {
+  border: 0 !important;
+  border-radius: 0.75rem !important;
+  padding: 2rem 1rem !important;
+  background: var(--color-transparent) !important;
+  box-shadow: none !important;
+  transition: background-color 180ms ease;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]):focus,
+textarea:focus {
+  border-bottom-color: var(--color-apple-400) !important;
+  outline: none;
+}
+
+select:focus {
+  background: var(--color-snow-drift-200) !important;
+  outline: none;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-celtic-700);
+  opacity: 0.62;
+}
+
 button {
   font-weight: 500;
 }
@@ -141,9 +177,31 @@ button {
 }
 
 .filter-tag-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: #eaf1eb transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
+}
+
+.filter-tag-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+@keyframes slide-confirm-shimmer {
+  0% { transform: translateX(-5rem); opacity: 0; }
+  15% { opacity: 0.7; }
+  65% { opacity: 0.35; }
+  100% { transform: translateX(34rem); opacity: 0; }
+}
+
+.slide-confirm-shimmer {
+  animation: slide-confirm-shimmer 2.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slide-confirm-shimmer { animation: none; }
 }
 
 /* The Thai type scale uses only Anuphan 300 and 400. */

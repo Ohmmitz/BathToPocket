@@ -127,6 +127,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
       date,
       time,
       note: note.trim() || undefined,
+      icon: type === 'expense' ? selectedBudgetItem?.icon : undefined,
     };
 
     // Calculate budget impact if expense
@@ -178,7 +179,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
     : [];
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pb-20 md:pb-8">
+    <div className="mx-auto w-full max-w-5xl space-y-6 pb-20 md:pb-8">
       {/* Page Title & Quick Undo button */}
       <div className="flex items-center justify-between glass-card p-5 rounded-3xl border border-white/80 shadow-xs">
         <div>
@@ -316,7 +317,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
                 }`}
               >
                 <span className="w-24 h-24 flex items-center justify-center overflow-hidden">
-                  <MoreHorizontal className="w-10 h-10 text-gray-400" />
+                  <MoreHorizontal className="w-10 h-10 text-celtic-900" />
                 </span>
                 <span className="text-xs font-semibold leading-snug text-celtic-900">รายการอื่น</span>
               </button>
@@ -408,7 +409,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
               วันที่
             </label>
             <div className="relative">
-              <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-celtic-700" />
               <input
                 id="tx-date"
                 type="date"
@@ -424,7 +425,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
               เวลา
             </label>
             <div className="relative">
-              <Clock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Clock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-celtic-700" />
               <input
                 id="tx-time"
                 type="time"
@@ -441,7 +442,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
             หมายเหตุเพิ่มเติม (ถ้ามี)
           </label>
           <div className="relative">
-            <FileText className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+            <FileText className="w-4 h-4 absolute left-3 top-3 text-celtic-700" />
             <textarea
               id="tx-note"
               rows={2}

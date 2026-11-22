@@ -33,7 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Brand Logo & Name */}
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden">
               <img src={brandLogo} alt="" className="w-full h-full object-cover" />
             </div>
             <div>
@@ -46,7 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           {/* Desktop Navigation Tabs - Liquid Glass Segmented Bar */}
           <nav 
-            className="hidden md:flex items-center gap-1 bg-snow-drift-100 p-1 rounded-xl" 
+            className="hidden md:flex items-center gap-1 bg-snow-drift-100 p-1 rounded-full" 
             aria-label="เมนูหลัก"
           >
             {navItems.map((item) => {

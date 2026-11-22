@@ -94,15 +94,12 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
   };
 
   return (
-    <div className="space-y-0 pb-20 md:pb-8">
+    <div className="mx-auto w-full max-w-5xl space-y-6 pb-20 md:pb-8">
       {/* Top Header Card */}
-      <div className="glass-card p-4 rounded-3xl border border-white/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="glass-card p-4 rounded-3xl border border-white/80 shadow-xs flex flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <div className="p-2.5 rounded-2xl bg-teal-500/15 text-teal-800 border border-teal-300/40 shadow-2xs">
-              <PiggyBank className="w-5 h-5" />
-            </div>
-            <h1 className="text-xl font-bold text-gray-900 tracking-tight">
+            <h1 className="text-xl font-bold text-gray-900">
               เงินออม
             </h1>
           </div>
@@ -110,25 +107,25 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
 
         <button
           onClick={() => setIsCreatingGoal(true)}
-          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-semibold rounded-2xl flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-700/20"
+          className="px-4 py-2.5 bg-apple-200 hover:bg-emerald-700 active:scale-95 text-white text-xs font-semibold rounded-full flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-700/20"
         >
           <Plus className="w-4 h-4" />
-          สร้างเป้าหมายออมเงินใหม่
+          สร้างเป้าหมาย
         </button>
       </div>
 
       {/* Savings Summary Banner */}
-      <div className="bg-snow-drift-100 text-celtic-900 rounded-2xl p-4 sm:p-6 relative overflow-hidden">
+      <div className="bg-apple-200/12 text-celtic-900 rounded-2xl p-4 sm:p-6 relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <span className="text-sm tracking-wide text-celtic-700">
               ยอดเงินออมสะสมรวมทุกเป้าหมาย
             </span>
-            <div className="font-onest text-3xl sm:text-4xl tracking-tight mt-1 text-celtic-900">
-              {totalAccumulatedSavings.toLocaleString('th-TH')}-.
+            <div className="font-onest text-4xl sm:text-4xl tracking-tight mt-1 text-celtic-900">
+              {totalAccumulatedSavings.toLocaleString('th-TH')}
             </div>
             <span className="text-sm text-celtic-700 mt-1 block">
-              จากเป้าหมายรวม <span className="font-onest">{totalTargetSavings.toLocaleString('th-TH')} -.</span>
+              จากเป้าหมายรวม <span className="font-onest">{totalTargetSavings.toLocaleString('th-TH')} </span>
             </span>
           </div>
 
@@ -137,7 +134,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
               <span>ความคืบหน้ารวม</span>
               <span className="font-onest font-bold">{overallPercentage}%</span>
             </div>
-            <div className="w-full bg-snow-drift-50 rounded-full h-3 overflow-hidden">
+            <div className="w-full bg-snow-drift-100 rounded-full h-4 overflow-hidden">
               <div
                 className="bg-apple-400 h-full rounded-full transition-all duration-500"
                 style={{ width: `${overallPercentage}%` }}
@@ -175,7 +172,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                 {savings.length === 0 && <option value="">(ยังไม่มีเป้าหมาย - โปรดสร้างเป้าหมายก่อน)</option>}
                 {savings.map((g) => (
                   <option key={g.id} value={g.id}>
-                    {g.title} (สะสมแล้ว{g.currentAmount.toLocaleString('th-TH')} -.)
+                    {g.title} (สะสมแล้ว{g.currentAmount.toLocaleString('th-TH')} )
                   </option>
                 ))}
               </select>
@@ -187,7 +184,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                 จำนวนเงินที่ต้องการออม (บาท) *
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">-.</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm"></span>
                 <input
                   id="deposit-amount"
                   type="number"
@@ -415,13 +412,13 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                       <div>
                         <span className="text-[10px] text-gray-400 block font-medium">สะสมแล้ว</span>
                         <span className="text-lg font-extrabold text-emerald-800 font-onest">
-                          {goal.currentAmount.toLocaleString('th-TH')}-.
+                          {goal.currentAmount.toLocaleString('th-TH')}
                         </span>
                       </div>
                       <div className="text-right">
                         <span className="text-[10px] text-gray-400 block font-medium">เป้าหมาย</span>
                         <span className="text-sm font-bold text-gray-700 font-onest">
-                          {goal.targetAmount.toLocaleString('th-TH')}-.
+                          {goal.targetAmount.toLocaleString('th-TH')}
                         </span>
                       </div>
                     </div>
@@ -436,13 +433,13 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
 
                     <div className="flex items-center justify-between text-[11px] text-gray-500 mt-2">
                       <span className="font-onest">{progressPct}% สำเร็จแล้ว</span>
-                      <span className="font-onest">ขาดอีก {remaining.toLocaleString('th-TH')}-.</span>
+                      <span className="font-onest">ขาดอีก {remaining.toLocaleString('th-TH')}</span>
                     </div>
 
                     {goal.monthlyPlan > 0 && (
                       <div className="mt-2.5 pt-2 border-t border-gray-100 text-[11px] text-gray-500 flex justify-between">
                         <span>แผนออมต่อเดือน:</span>
-                        <span className="font-onest font-semibold text-gray-700">{goal.monthlyPlan.toLocaleString('th-TH')}-.</span>
+                        <span className="font-onest font-semibold text-gray-700">{goal.monthlyPlan.toLocaleString('th-TH')}</span>
                       </div>
                     )}
                   </div>
@@ -456,7 +453,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                       {goal.history.slice(0, 2).map((h) => (
                         <div key={h.id} className="text-[11px] text-gray-600 flex justify-between">
                           <span>{h.date} {h.note ? `(${h.note})` : ''}</span>
-                          <span className="font-onest font-semibold text-emerald-700">+{h.amount.toLocaleString('th-TH')}-.</span>
+                          <span className="font-onest font-semibold text-emerald-700">+{h.amount.toLocaleString('th-TH')}</span>
                         </div>
                       ))}
                     </div>

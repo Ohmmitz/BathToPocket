@@ -32,6 +32,7 @@ export interface Transaction {
   date: string; // YYYY-MM-DD
   time: string; // HH:mm
   note?: string;
+  icon?: string;
   createdAt: number;
 }
 
@@ -70,6 +71,20 @@ export interface SavingGoal {
 export type BudgetStatus = 'normal' | 'warning' | 'exceeded';
 
 /**
+ * Return the reporting month for the 28th-to-27th accounting cycle.
+ * Transactions dated on the 28th or later belong to the following month's period.
+ */
+export function getAccountingPeriodMonth(value: string | Date = new Date()): string {
+  const date = typeof value === 'string'
+    ? new Date(Number(value.slice(0, 4)), Number(value.slice(5, 7)) - 1, Number(value.slice(8, 10)))
+    : value;
+  const year = date.getFullYear();
+  const month = date.getMonth() + (date.getDate() >= 28 ? 1 : 0);
+  const periodDate = new Date(year, month, 1);
+  return `${periodDate.getFullYear()}-${String(periodDate.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
  * Calculate the total planned amount from an array of budget sub-items
  */
 export function getBudgetItemAmount(item: BudgetItem, month?: string): number {
@@ -97,7 +112,7 @@ export function calculateCategorySpent(
       if (tx.type !== 'expense') return false;
       const transactionCategory = tx.category === 'เงินออม' ? 'หนี้สิน' : tx.category;
       if (transactionCategory !== category) return false;
-      if (monthPrefix && !tx.date.startsWith(monthPrefix)) return false;
+      if (monthPrefix && getAccountingPeriodMonth(tx.date) !== monthPrefix) return false;
       return true;
     })
     .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);

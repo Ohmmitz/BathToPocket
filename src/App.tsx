@@ -478,6 +478,7 @@ export default function App() {
         {activeTab === 'history' && (
           <HistoryView
             transactions={transactions}
+            budgets={budgets}
             onDeleteTransaction={handleDeleteTransaction}
             onOpenUndoModal={() => setIsUndoModalOpen(true)}
             isSyncing={isSyncing}

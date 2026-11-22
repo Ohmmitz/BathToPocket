@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
-  Check, 
+  ChevronRight,
   X, 
   AlertTriangle, 
   Calendar, 
@@ -15,6 +15,137 @@ import {
 } from 'lucide-react';
 import { Transaction } from '../utils/finance.ts';
 import { getCategoryInfo } from '../utils/categoryHelpers.tsx';
+
+interface SlideToConfirmProps {
+  disabled: boolean;
+  isSubmitting: boolean;
+  onConfirm: () => void;
+}
+
+const SlideToConfirm: React.FC<SlideToConfirmProps> = ({ disabled, isSubmitting, onConfirm }) => {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const progressRef = useRef(0);
+  const draggingRef = useRef(false);
+  const confirmingRef = useRef(false);
+  const [progress, setProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const updateProgress = (value: number) => {
+    const next = Math.max(0, Math.min(1, value));
+    progressRef.current = next;
+    setProgress(next);
+  };
+
+  const confirm = () => {
+    if (disabled || isSubmitting || confirmingRef.current) return;
+    if (progressRef.current < 0.82) {
+      updateProgress(0);
+      return;
+    }
+    confirmingRef.current = true;
+    updateProgress(1);
+    onConfirm();
+  };
+
+  useEffect(() => {
+    if (!isSubmitting) {
+      confirmingRef.current = false;
+      progressRef.current = 0;
+      setProgress(0);
+    }
+  }, [isSubmitting]);
+
+  const getMaxTravel = () => {
+    const trackWidth = trackRef.current?.getBoundingClientRect().width || 0;
+    return Math.max(0, trackWidth - 64);
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (disabled || isSubmitting) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    draggingRef.current = true;
+    setIsDragging(true);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!draggingRef.current) return;
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const travel = getMaxTravel();
+    const thumbCenter = event.clientX - rect.left - 32;
+    updateProgress(travel > 0 ? thumbCenter / travel : 0);
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    setIsDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    confirm();
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (disabled || isSubmitting) return;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+      event.preventDefault();
+      updateProgress(progressRef.current + (event.key === 'ArrowRight' ? 0.12 : -0.12));
+      if (progressRef.current >= 1) confirm();
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      updateProgress(0);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      updateProgress(1);
+      confirm();
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      confirm();
+    }
+  };
+
+  const thumbTravel = getMaxTravel();
+  const thumbOffset = thumbTravel * progress;
+
+  return (
+    <div
+      ref={trackRef}
+      className="relative h-16 w-full overflow-hidden rounded-full bg-snow-drift-200 p-4 select-none"
+      aria-label="เลื่อนเพื่อยืนยันการบันทึก"
+    >
+      <div
+        className="absolute inset-y-2 left-2 rounded-full bg-apple-200 transition-[width] duration-200 ease-out"
+        style={{ width: `${56 + thumbOffset}px` }}
+        aria-hidden="true"
+      />
+      <div className="slide-confirm-shimmer absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-transparent via-white/50 to-transparent" aria-hidden="true" />
+      <span className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center pl-10 pr-4 text-sm font-medium text-celtic-800">
+        {isSubmitting ? 'กำลังบันทึก...' : progress > 0.12 ? 'เลื่อนต่อเพื่อยืนยัน' : 'เลื่อนเพื่อยืนยันการบันทึก'}
+      </span>
+      <button
+        type="button"
+        role="slider"
+        aria-label="เลื่อนเพื่อยืนยันการบันทึก"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(progress * 100)}
+        aria-valuetext={isSubmitting ? 'กำลังบันทึก' : `${Math.round(progress * 100)} เปอร์เซ็นต์`}
+        aria-disabled={disabled || isSubmitting}
+        disabled={disabled || isSubmitting}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={() => { draggingRef.current = false; setIsDragging(false); updateProgress(0); }}
+        onKeyDown={handleKeyDown}
+        className={`absolute left-2 top-2 z-20 flex h-12 w-18 touch-none items-center justify-center rounded-full bg-apple-400 text-celtic-900 transition-[transform,background-color] duration-200 ease-out focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-apple-200 ${isDragging ? 'cursor-grabbing scale-105' : 'cursor-grab'} ${disabled || isSubmitting ? 'opacity-70' : 'hover:bg-apple-300'}`}
+        style={{ transform: `translateX(${thumbOffset}px)` }}
+      >
+        {isSubmitting ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-celtic-900/25 border-t-celtic-900" /> : <ChevronRight className="h-6 w-6" />}
+      </button>
+    </div>
+  );
+};
 
 interface TransactionSummaryModalProps {
   isOpen: boolean;
@@ -55,10 +186,10 @@ export const TransactionSummaryModal: React.FC<TransactionSummaryModalProps> = (
               {isExpense ? <ShoppingBasket className="w-8 h-8" /> : <Wallet className="w-8 h-8" />}
             </div>
             <div>
-              <h3 id="summary-modal-title" className="text-lg font-bold text-gray-900 leading-tight">
+              <h5 id="summary-modal-title" className="font-bold text-celtic-900">
                 สรุปข้อมูลก่อนบันทึก
-              </h3>
-              <p className="text-xs text-celtic-700 mt-2">
+              </h5>
+              <p className="text-xs text-celtic-700">
                 โปรดตรวจสอบความถูกต้องของรายการ
               </p>
             </div>
@@ -154,25 +285,11 @@ export const TransactionSummaryModal: React.FC<TransactionSummaryModalProps> = (
             </div>
           )}
         </div>
-        {/* Action Buttons */}
-        <div className="px-6 pb-6 pt-2 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="flex-1 px-4 py-4 rounded-full text-celtic-800 hover:bg-apple-200 font-medium text-base transition-colors text-center"
-          >
-            แก้ไข / ยกเลิก
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={isSubmitting}
-            className="flex-1 px-4 py-4 rounded-full bg-apple-300 hover:bg-apple-200 text-celtic-900 font-semibold text-base transition-all flex items-center justify-center gap-4"
-          >
-            <Check className="w-4 h-4" />
-            {isSubmitting ? 'กำลังบันทึก...' : 'ยืนยันการบันทึก'}
-          </button>
+        {/* Edit and slide-to-confirm actions */}
+        <div className="px-6 pb-6 pt-2 flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <SlideToConfirm disabled={isSubmitting} isSubmitting={isSubmitting} onConfirm={onConfirm} />
+          </div>
         </div>
       </div>
     </div>

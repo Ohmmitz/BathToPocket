@@ -11,6 +11,7 @@ import {
   calculateFinancialSummary, 
   calculateCategorySpent, 
   calculateBudgetTotal,
+  getAccountingPeriodMonth,
   getBudgetProgress, 
   EXPENSE_CATEGORIES 
 } from '../../utils/finance.ts';
@@ -29,9 +30,9 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
   onNavigateToAdd,
 }) => {
   const today = new Date();
-  const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const currentMonthStr = getAccountingPeriodMonth(today);
   const transactionMonths = transactions
-    .map((transaction) => transaction.date.slice(0, 7))
+    .map((transaction) => getAccountingPeriodMonth(transaction.date))
     .filter((month) => /^\d{4}-(0[1-9]|1[0-2])$/.test(month));
   const firstMonth = transactionMonths.length
     ? transactionMonths.reduce((earliest, month) => month < earliest ? month : earliest)
@@ -56,7 +57,7 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showRemainingBudget, setShowRemainingBudget] = useState(false);
 
-  const currentMonthTransactions = transactions.filter(t => t.date.startsWith(selectedMonth));
+  const currentMonthTransactions = transactions.filter(t => getAccountingPeriodMonth(t.date) === selectedMonth);
   const { totalIncome, totalExpense, balance } = calculateFinancialSummary(currentMonthTransactions);
 
   // Total budget planned across all expense categories
@@ -102,15 +103,15 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
   const budgetRingProgressLength = budgetRingCircumference * budgetRingSweep * progressRatio / 100;
 
   return (
-    <div className="space-y-6 pb-20 md:pb-6">
+    <div className="mx-auto w-full max-w-5xl space-y-6 pb-20 md:pb-8">
       {/* Month Selector Bar & Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-4 py-3 sm:px-5">
         <div>
           <h1 className="text-xl font-bold text-celtic-900">
             สรุปค่าใช้จ่าย
           </h1>
         </div>
-        <div className="flex items-center gap-4 self-stretch">
+        <div className="flex items-center justify-between gap-4 sm:justify-end">
           <label htmlFor="month-select" className="text-base text-celtic-700 font-medium">
             เดือน
           </label>
@@ -223,15 +224,15 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
         </div>
       </section>
       {/* Income and expense cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+      <div className="grid grid-cols-2 gap-3.5">
         <div className="glass-card p-4.5 rounded-3xl border border-white/80 shadow-xs">
           <div className="flex items-center justify-start mb-2">
-            <span className="text-xs font-semibold text-gray-700">รายรับเดือนนี้</span>
+            <span className="text-xs font-semibold text-celtic-700">รายรับเดือนนี้</span>
             <div className="w-8 h-8 text-celtic-900 flex items-center justify-center">
               <Wallet className="w-4 h-4" />
             </div>
           </div>
-          <div className="font-onest text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
+          <div className="font-onest text-xl sm:text-2xl font-bold text-celtic-900 tracking-tight">
             +{totalIncome.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}-.
           </div>
           <span className="text-[11px] text-celtic-900 font-medium block mt-1">
@@ -240,7 +241,7 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
         </div>
         <div className="glass-card p-4.5 rounded-3xl border border-white/80 shadow-xs">
           <div className="flex items-center justify-start mb-2">
-            <span className="text-xs font-semibold text-gray-700">รายจ่ายเดือนนี้</span>
+            <span className="text-xs font-semibold text-celtic-700">รายจ่ายเดือนนี้</span>
             <div className="w-8 h-8 text-celtic-900 flex items-center justify-center">
               <ShoppingBasket className="w-4 h-4" />
             </div>
@@ -260,10 +261,10 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
             <Sparkles className="w-5 h-5" />
           </div>
           <div>
-            <h4 className="text-sm font-bold text-gray-900">
+            <h4 className="text-sm font-bold text-celtic-900">
               ต้องการบันทึกค่าใช้จ่ายวันนี้เพิ่มไหม?
             </h4>
-            <p className="text-xs text-gray-600">
+            <p className="text-xs text-celtic-700">
               จดบันทึกทันทีหลังจ่ายเงินเพื่อควบคุมงบประมาณได้อย่างแม่นยำ
             </p>
           </div>

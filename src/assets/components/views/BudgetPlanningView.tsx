@@ -153,7 +153,7 @@ function BudgetItemForm({
   };
 
   return (
-    <div className="p-4 bg-snow-drift-100 rounded-2xl border border-emerald-200 space-y-4">
+    <div className="p-4 bg-snow-drift-100/25 rounded-2xl border border-emerald-200 space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="text-xs font-semibold text-gray-700">
           ชื่อรายการค่าใช้จ่าย
@@ -162,17 +162,17 @@ function BudgetItemForm({
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="เช่น ค่าเดินทาง, ค่ากาแฟ"
-            className="mt-1 w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-gray-900 font-medium focus:outline-none focus:ring-1 focus:ring-apple-400"
+            className="mt-2 w-full px-2 py-2 bg-white border border-gray-300 rounded-xl text-gray-900 font-medium focus:outline-none focus:ring-1 focus:ring-apple-400"
           />
         </label>
         <div>
           <span className="text-xs font-semibold text-gray-700">ไอคอนค่าใช้จ่าย (เลือกได้)</span>
-          <div className="mt-1 flex flex-wrap gap-2 max-h-36 overflow-y-auto p-2 bg-white/70 rounded-xl border border-gray-200">
+          <div className="mt-1 flex flex-wrap gap-2 max-h-48 overflow-y-auto p-2 bg-white/70 rounded-xl border border-gray-200">
             <button
               type="button"
               onClick={() => setIcon('')}
               aria-pressed={!icon}
-              className={`w-11 h-11 rounded-lg border flex items-center justify-center text-[10px] ${!icon ? 'border-celtic-700 bg-emerald-50' : 'border-gray-200'}`}
+              className={`w-12 h-12 rounded-lg border flex items-center justify-center text-[10px] ${!icon ? 'border-celtic-700 bg-emerald-50' : 'border-gray-200'}`}
             >
               ไม่มี
             </button>
@@ -184,7 +184,7 @@ function BudgetItemForm({
                 aria-label={`เลือกไอคอน ${option.label}`}
                 aria-pressed={icon === option.file}
                 title={option.label}
-                className={`w-11 h-11 rounded-lg border p-1.5 flex items-center justify-center ${icon === option.file ? 'border-celtic-700 bg-emerald-50' : 'border-gray-200'}`}
+                className={`w-12 h-12 rounded-lg border p-1.5 flex items-center justify-center ${icon === option.file ? 'border-celtic-700 bg-emerald-50' : 'border-gray-200'}`}
               >
                 <img src={option.src} alt="" loading="lazy" className="w-full h-full object-contain" />
               </button>
@@ -208,7 +208,7 @@ function BudgetItemForm({
 
       {hasBudget && (
         <div className="space-y-3">
-          <div className="flex flex-wrap gap-2 bg-snow-drift-200 p-2 rounded-full" role="group" aria-label="ระยะเวลาการวางแผนงบ">
+          <div className="flex flex-wrap gap-2 bg-snow-drift-100 p-2 rounded-full" role="group" aria-label="ระยะเวลาการวางแผนงบ">
             <button
               type="button"
               onClick={() => setPlanChoice('monthly')}
@@ -233,7 +233,7 @@ function BudgetItemForm({
           {planChoice === 'monthly' ? (
             <label className="block text-xs font-semibold text-gray-700">
               จำนวนงบต่อเดือน
-              <div className="relative mt-1 max-w-xs">
+              <div className="relative mt-1 w-full">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></span>
                 <input
                   type="number" min="0" value={amount}
@@ -344,7 +344,7 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-20 md:pb-8">
+    <div className="mx-auto w-full max-w-5xl space-y-6 pb-20 md:pb-8">
       <div className="glass-card p-5.5 rounded-3xl border border-white/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -388,7 +388,7 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
       </div>
 
       <section className="glass-card rounded-3xl border border-white/80 shadow-xs overflow-hidden">
-        <div className="p-4.5 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/40">
+        <div className="p-4.5 flex flex-row sm:items-center justify-between gap-3 bg-white/40">
           <div className="flex items-center gap-3">
             <div className={`p-3 rounded-2xl ${getCategoryInfo(activeCategory).bgLight} ${getCategoryInfo(activeCategory).textColor}`}>
               {getCategoryInfo(activeCategory).icon}
@@ -398,12 +398,12 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
               <span className="text-xs text-celtic-700">{selectedBudget.items.length} รายการ · {monthLabel(selectedMonth)}</span>
             </div>
           </div>
-          <div className="flex items-center gap-3 sm:gap-5">
+          <div className="flex items-center gap-5">
             <div className="text-right">
               <span className="text-xs font-bold text-celtic-700 block">ยอดงบหมวดนี้</span>
               <span className="font-onest text-xl font-black text-emerald-800">{selectedBudget.totalPlanned.toLocaleString('th-TH')}</span>
             </div>
-            <button type="button" onClick={handleStartAddItem} className="px-4 py-4 bg-apple-200 hover:bg-apple-300 text-celtic-900 rounded-full text-xs font-bold flex items-center gap-1.5">
+            <button type="button" onClick={handleStartAddItem} className="px-4 py-4 bg-apple-200 hover:bg-apple-300 text-celtic-900 rounded-2xl text-xs font-bold flex items-center gap-1.5">
               <Plus className="w-4 h-4" />
             </button>
           </div>
