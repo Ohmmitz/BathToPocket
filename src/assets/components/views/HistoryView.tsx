@@ -103,7 +103,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   }, [finalFiltered]);
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 pb-20 md:pb-8">
+    <div className="mx-auto w-full max-w-5xl space-y-2 pb-8">
       {/* Top Header & Undo Bar */}
       <div className="glass-card p-4 sm:p-5 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

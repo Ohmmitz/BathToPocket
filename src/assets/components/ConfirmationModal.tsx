@@ -172,7 +172,7 @@ export const TransactionSummaryModal: React.FC<TransactionSummaryModalProps> = (
   const catInfo = getCategoryInfo(transaction.category);
 
   return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-celtic-900/80 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-celtic-900/80 animate-in fade-in duration-200">
       <div 
         className="w-full max-w-md glass-island rounded-4xl overflow-hidden transform transition-all"
         role="dialog"
@@ -180,17 +180,17 @@ export const TransactionSummaryModal: React.FC<TransactionSummaryModalProps> = (
         aria-labelledby="summary-modal-title"
       >
         {/* Header */}
-        <div className="px-4 pt-4 pb-4 flex items-center justify-between">
+        <div className="px-4 pt-4 pb-4 flex items-start justify-between">
           <div className="flex items-center gap-3">
             <div className={`p-4 rounded-2xl ${isExpense ? 'bg-apple-300 text-celtic-900' : 'bg-apple-300 text-celtic-900'} `}>
               {isExpense ? <ShoppingBasket className="w-8 h-8" /> : <Wallet className="w-8 h-8" />}
             </div>
             <div>
               <h5 id="summary-modal-title" className="font-bold text-celtic-900">
-                สรุปข้อมูลก่อนบันทึก
+                สรุปข้อมูล
               </h5>
               <p className="text-xs text-celtic-700">
-                โปรดตรวจสอบความถูกต้องของรายการ
+                โปรดตรวจสอบความถูกต้อง
               </p>
             </div>
           </div>
@@ -200,19 +200,19 @@ export const TransactionSummaryModal: React.FC<TransactionSummaryModalProps> = (
             className="p-4 text-celtic-700 hover:text-celtic-900 hover:bg-snow-drift-200 rounded-2xl transition-colors"
             aria-label="ปิดหน้าต่างสรุป"
           >
-            <X className="w-8 h-8" />
+            <X className="w-4 h-4" />
           </button>
         </div>
         {/* Content Details */}
-        <div className="p-6 space-y-4">
+        <div className="p-4 space-y-2">
           {/* Main Amount Card */}
           <div className={`p-4 rounded-xl text-center border ${
             isExpense ? 'bg-rose-50/50 border-rose-100' : 'bg-emerald-50/50 border-emerald-100'
           }`}>
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wider block mb-1">
-              {isExpense ? 'จำนวนเงินที่จ่าย (รายจ่าย)' : 'จำนวนเงินที่ได้รับ (รายรับ)'}
+              {isExpense ? 'จำนวนเงินที่จ่าย' : 'จำนวนเงินที่ได้รับ'}
             </span>
-            <div className="mt-4 mb-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-800 shadow-2xs">
+            <div className="mt-2 mb-4 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-800 shadow-2xs">
               {itemIconUrl ? (
                 <img src={itemIconUrl} alt="" className="w-8 h-8 object-contain" />
               ) : (
@@ -228,7 +228,7 @@ export const TransactionSummaryModal: React.FC<TransactionSummaryModalProps> = (
           </div>
 
           {/* Details Grid */}
-          <div className="bg-transparent rounded-xl p-4 space-y-4 text-base">
+          <div className="bg-transparent rounded-xl p-4 space-y-2 text-base">
             <div className="flex items-center justify-between py-1">
               <span className="text-gray-500 flex items-center gap-1.5 text-xs">
                 <Tag className="w-3.5 h-3.5" />

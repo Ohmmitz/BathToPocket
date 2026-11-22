@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import brandLogo from '../favicon.svg';
 import { 
   PieChart, 
@@ -9,6 +9,33 @@ import {
 } from 'lucide-react';
 
 export type TabType = 'summary' | 'add' | 'budget' | 'savings' | 'history';
+
+type NavItem = { id: TabType; label: string; icon: React.ReactNode };
+
+function useSlidingPill(activeTab: TabType, items: NavItem[]) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [pill, setPill] = useState({ left: 0, width: 0, ready: false });
+  const activeIndex = items.findIndex((item) => item.id === activeTab);
+
+  useLayoutEffect(() => {
+    const updatePill = () => {
+      const button = buttonRefs.current[activeIndex];
+      if (!button) return;
+      setPill({ left: button.offsetLeft, width: button.offsetWidth, ready: true });
+    };
+    updatePill();
+    const observer = new ResizeObserver(updatePill);
+    if (containerRef.current) observer.observe(containerRef.current);
+    window.addEventListener('resize', updatePill);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updatePill);
+    };
+  }, [activeIndex]);
+
+  return { containerRef, buttonRefs, pill };
+}
 
 interface HeaderProps {
   activeTab: TabType;
@@ -26,6 +53,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'savings', label: 'เงินออม', icon: <PiggyBank className="w-4 h-4" /> },
     { id: 'history', label: 'ดูประวัติ', icon: <History className="w-4 h-4" /> },
   ];
+  const { containerRef, buttonRefs, pill } = useSlidingPill(activeTab, navItems);
 
   return (
     <header className="sticky top-0 z-30 glass-surface transition-colors">
@@ -46,18 +74,25 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           {/* Desktop Navigation Tabs - Liquid Glass Segmented Bar */}
           <nav 
-            className="hidden md:flex items-center gap-1 bg-snow-drift-100 p-1 rounded-full" 
+            ref={containerRef}
+            className="relative hidden md:flex items-center gap-1 bg-snow-drift-100 p-1 rounded-full" 
             aria-label="เมนูหลัก"
           >
-            {navItems.map((item) => {
+            <span
+              aria-hidden="true"
+              className="sliding-pill-indicator pointer-events-none absolute top-1 bottom-1 rounded-full bg-apple-200 transition-[left,width] duration-400 ease-[cubic-bezier(0.65,0,0.35,1)]"
+              style={{ left: pill.left, width: pill.width, opacity: pill.ready ? 1 : 0 }}
+            />
+            {navItems.map((item, index) => {
               const isActive = activeTab === item.id;
               return (
                 <button
                   key={item.id}
+                  ref={(element) => { buttonRefs.current[index] = element; }}
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-full text-sm transition-colors duration-200 ${
+                  className={`relative z-10 flex items-center gap-2 px-3 py-2 rounded-full text-sm transition-colors duration-200 ${
                     isActive
-                      ? 'bg-apple-200 text-celtic-900'
+                      ? 'text-celtic-900'
                       : 'text-celtic-700 hover:text-celtic-900 hover:bg-snow-drift-50'
                   }`}
                   aria-label={item.label}
@@ -91,6 +126,7 @@ export const MobileNav: React.FC<{ activeTab: TabType; setActiveTab: (tab: TabTy
     { id: 'savings', label: 'เงินออม', icon: <PiggyBank className="w-5 h-5" /> },
     { id: 'history', label: 'ประวัติค่าใช้จ่าย', icon: <History className="w-5 h-5" /> },
   ];
+  const { containerRef, buttonRefs, pill } = useSlidingPill(activeTab, navItems);
 
   return (
     <nav 
@@ -98,16 +134,23 @@ export const MobileNav: React.FC<{ activeTab: TabType; setActiveTab: (tab: TabTy
       className="md:hidden fixed bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-[360px]"
     >
       {/* One evenly spaced row of icon-only navigation buttons */}
-      <div className="glass-island rounded-full px-1.5 py-1.5 flex items-center justify-around bg-snow-drift-100">
-        {navItems.map((item) => {
+      <div className="glass-island rounded-full bg-snow-drift-100 p-1.5">
+        <div ref={containerRef} className="relative flex w-full items-center">
+          <span
+            aria-hidden="true"
+            className="sliding-pill-indicator pointer-events-none absolute inset-y-0 rounded-full bg-apple-200 transition-[left,width] duration-400 ease-[cubic-bezier(0.65,0,0.35,1)]"
+            style={{ left: pill.left, width: pill.width, opacity: pill.ready ? 1 : 0 }}
+          />
+        {navItems.map((item, index) => {
             const isActive = activeTab === item.id;
             return (
               <button
                 key={item.id}
+                ref={(element) => { buttonRefs.current[index] = element; }}
                 onClick={() => setActiveTab(item.id)}
-                className={`relative min-w-0 flex-1 h-11 mx-0.5 rounded-full flex items-center justify-center transition-colors duration-200 active:scale-95 ${
+                className={`relative z-10 min-w-0 flex-1 h-11 mx-0.5 rounded-full flex items-center justify-center transition-colors duration-200 active:scale-95 ${
                   isActive
-                    ? 'bg-apple-200 text-celtic-900'
+                    ? 'text-celtic-900'
                     : 'text-celtic-700 hover:text-celtic-900 hover:bg-snow-drift-50'
                 }`}
                 aria-label={item.label}
@@ -118,6 +161,7 @@ export const MobileNav: React.FC<{ activeTab: TabType; setActiveTab: (tab: TabTy
               </button>
             );
         })}
+        </div>
       </div>
     </nav>
   );

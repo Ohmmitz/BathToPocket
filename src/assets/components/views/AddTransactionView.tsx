@@ -23,6 +23,7 @@ import {
   getBudgetProgress 
 } from '../../utils/finance.ts';
 import { getCategoryInfo } from '../../utils/categoryHelpers.tsx';
+import { SlidingPillToggle } from '../SlidingPillToggle.tsx';
 import { TransactionSummaryModal } from '../ConfirmationModal.tsx';
 
 interface AddTransactionViewProps {
@@ -179,16 +180,13 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
     : [];
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 pb-20 md:pb-8">
+    <div className="mx-auto w-full max-w-5xl space-y-2 pb-8">
       {/* Page Title & Quick Undo button */}
       <div className="flex items-center justify-between glass-card p-5 rounded-3xl border border-white/80 shadow-xs">
         <div>
           <h1 className="text-xl font-bold text-celtic-900 tracking-tight">
-            บันทึกค่าใช้จ่ายและรายรับ
+            บันทึกค่าใช้จ่าย
           </h1>
-          <p className="text-xs text-celtic-700">
-            ระบบจะแสดงหน้าสรุปข้อมูลทุกครั้งก่อนกดยืนยันบันทึก
-          </p>
         </div>
         {hasTransactionsToUndo && (
           <button
@@ -204,34 +202,20 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
         )}
       </div>
       {/* Main Input Form */}
-      <form onSubmit={handleReviewAndSubmit} className="glass-card rounded-3xl p-6 sm:p-7 border border-white/80 shadow-xs space-y-6">
+      <form onSubmit={handleReviewAndSubmit} className="glass-card rounded-3xl p-2 border border-white/80 shadow-xs space-y-4">
         {/* Toggle Type: Expense / Income */}
-        <div className="flex bg-snow-drift-100 p-1.5 rounded-full">
-          <button
-            type="button"
-            onClick={() => handleTypeChange('expense')}
-            className={`flex-1 py-2.5 rounded-full text-sm font-bold flex items-center justify-center gap-2 transition-all duration-200 ${
-              type === 'expense'
-                ? 'bg-apple-300 text-celtic-900'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <MinusCircle className="w-4 h-4" />
-            รายจ่าย
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTypeChange('income')}
-            className={`flex-1 py-2.4 rounded-full text-sm font-bold flex items-center justify-center gap-2 transition-all duration-200 ${
-              type === 'income'
-                ? 'bg-apple-300 text-celtic-900'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <PlusCircle className="w-4 h-4" />
-            รายรับ
-          </button>
-        </div>
+        <SlidingPillToggle
+          value={type}
+          onChange={(nextType) => handleTypeChange(nextType as TransactionType)}
+          ariaLabel="เลือกประเภทรายการ"
+          pillClassName="bg-celtic-900"
+          activeTextClassName="text-snow-drift-50"
+          inactiveTextClassName="text-celtic-700 hover:text-celtic-900"
+          options={[
+            { value: 'expense', label: 'รายจ่าย', icon: <MinusCircle className="h-4 w-4" /> },
+            { value: 'income', label: 'รายรับ', icon: <PlusCircle className="h-4 w-4" /> },
+          ]}
+        />
 
         {/* Category filter tags */}
         <div>
@@ -284,7 +268,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
                       setTitle(item.name);
                     }}
                     aria-pressed={isSelected}
-                    className={`min-h-32 rounded-4xl border p-4 flex flex-col items-center justify-center gap-2 text-center transition-all ${
+                    className={`min-h-32 rounded-4xl border p-2 flex flex-col items-center justify-center gap-1 text-center transition-all ${
                       isSelected
                         ? 'bg-snow-drift-100'
                         : 'bg-transparent'
@@ -292,9 +276,9 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
                   >
                     <span className="w-24 h-24 flex items-center justify-center overflow-hidden">
                       {iconUrl ? (
-                        <img src={iconUrl} alt="" className="w-full h-full p-1.5 object-contain" />
+                        <img src={iconUrl} alt="" className="w-full h-full p-1 object-contain" />
                       ) : (
-                        <span className="text-4xl" aria-hidden="true">{getCategoryInfo(category).emoji}</span>
+                        <span className="text-xl" aria-hidden="true">{getCategoryInfo(category).emoji}</span>
                       )}
                     </span>
                     <span className={`text-xs font-semibold ${isSelected ? 'text-celtic-900' : 'text-gray-800'}`}>
@@ -310,7 +294,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
                   setTitle('');
                 }}
                 aria-pressed={selectedBudgetItem === null}
-                className={`min-h-32 rounded-4xl border p-4 flex flex-col items-center justify-center gap-2 text-center transition-all ${
+                className={`min-h-32 rounded-4xl border p-2 flex flex-col items-center justify-center gap-1 text-center transition-all ${
                   selectedBudgetItem === null
                     ? 'bg-snow-drift-100'
                     : 'bg-transparent'
@@ -352,7 +336,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
                 key={val}
                 type="button"
                 onClick={() => handleQuickAddAmount(val)}
-                className="px-2 py-1 text-xs hover:bg-snow-drift-200 border border-white/80 text-gray-700 rounded-full transition-all "
+                className="px-2 py-1 text-xs hover:bg-snow-drift-100 border border-white/80 text-gray-700 rounded-full transition-all "
               >
                 +{val.toLocaleString()}
               </button>

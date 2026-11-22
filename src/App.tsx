@@ -441,7 +441,6 @@ export default function App() {
         {activeTab === 'summary' && (
           <ExpenseSummaryView
             transactions={transactions}
-            budgets={budgets}
             onNavigateToBudget={() => setActiveTab('budget')}
             onNavigateToAdd={() => setActiveTab('add')}
           />

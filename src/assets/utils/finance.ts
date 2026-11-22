@@ -41,7 +41,7 @@ export interface BudgetItem {
   name: string;
   amount: number;
   icon?: string;
-  planType?: 'monthly' | 'single' | 'six-month' | 'none';
+  planType?: 'daily' | 'monthly' | 'single' | 'six-month' | 'none';
   planMonth?: string;
   planAmounts?: Record<string, number>;
 }
@@ -84,11 +84,25 @@ export function getAccountingPeriodMonth(value: string | Date = new Date()): str
   return `${periodDate.getFullYear()}-${String(periodDate.getMonth() + 1).padStart(2, '0')}`;
 }
 
+export function getWeekdaysInMonth(monthValue: string): number {
+  const [year, month] = monthValue.split('-').map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let weekdays = 0;
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const weekday = new Date(year, month - 1, day).getDay();
+    if (weekday !== 0 && weekday !== 6) weekdays += 1;
+  }
+  return weekdays;
+}
+
 /**
  * Calculate the total planned amount from an array of budget sub-items
  */
 export function getBudgetItemAmount(item: BudgetItem, month?: string): number {
   if (item.planType === 'none') return 0;
+  if (item.planType === 'daily' && month) {
+    return (Number(item.amount) || 0) * getWeekdaysInMonth(month);
+  }
   if (item.planType === 'six-month' && month) {
     return Number(item.planAmounts?.[month]) || 0;
   }

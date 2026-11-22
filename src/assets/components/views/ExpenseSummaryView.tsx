@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   Wallet, 
   ShoppingBasket, 
@@ -7,25 +7,72 @@ import {
 } from 'lucide-react';
 import { 
   Transaction, 
-  CategoryBudget, 
   calculateFinancialSummary, 
   calculateCategorySpent, 
-  calculateBudgetTotal,
   getAccountingPeriodMonth,
-  getBudgetProgress, 
   EXPENSE_CATEGORIES 
 } from '../../utils/finance.ts';
 
+const AnimatedNumber: React.FC<{
+  value: number;
+  className?: string;
+  prefix?: string;
+  suffix?: string;
+  minimumFractionDigits?: number;
+  maximumFractionDigits?: number;
+}> = ({ value, className = '', prefix = '', suffix = '', minimumFractionDigits = 0, maximumFractionDigits = 2 }) => {
+  const [displayValue, setDisplayValue] = useState(0);
+  const currentValueRef = useRef(0);
+
+  useEffect(() => {
+    const startValue = currentValueRef.current;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || startValue === value) {
+      currentValueRef.current = value;
+      setDisplayValue(value);
+      return;
+    }
+
+    const duration = 720;
+    let animationFrame = 0;
+    let startTime: number | null = null;
+    const animate = (timestamp: number) => {
+      if (startTime === null) startTime = timestamp;
+      const progress = Math.min((timestamp - startTime) / duration, 1);
+      const easedProgress = 1 - Math.pow(1 - progress, 3);
+      const nextValue = startValue + (value - startValue) * easedProgress;
+      currentValueRef.current = nextValue;
+      setDisplayValue(nextValue);
+      if (progress < 1) animationFrame = window.requestAnimationFrame(animate);
+      else {
+        currentValueRef.current = value;
+        setDisplayValue(value);
+      }
+    };
+
+    animationFrame = window.requestAnimationFrame(animate);
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [value]);
+
+  const formattedValue = new Intl.NumberFormat('th-TH', {
+    minimumFractionDigits,
+    maximumFractionDigits,
+  }).format(displayValue);
+
+  return (
+    <span className={className} aria-label={`${prefix}${new Intl.NumberFormat('th-TH', { minimumFractionDigits, maximumFractionDigits }).format(value)}${suffix}`}>
+      {prefix}{formattedValue}{suffix}
+    </span>
+  );
+};
+
 interface ExpenseSummaryViewProps {
   transactions: Transaction[];
-  budgets: CategoryBudget[];
   onNavigateToBudget: () => void;
   onNavigateToAdd: () => void;
 }
 
 export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
   transactions,
-  budgets,
   onNavigateToBudget,
   onNavigateToAdd,
 }) => {
@@ -60,42 +107,23 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
   const currentMonthTransactions = transactions.filter(t => getAccountingPeriodMonth(t.date) === selectedMonth);
   const { totalIncome, totalExpense, balance } = calculateFinancialSummary(currentMonthTransactions);
 
-  // Total budget planned across all expense categories
-  const totalBudgetPlanned = budgets.reduce(
-    (sum, budget) => sum + (budget.items?.length ? calculateBudgetTotal(budget.items, selectedMonth) : Number(budget.totalPlanned) || 0),
-    0
-  );
-  const totalBudgetSpent = EXPENSE_CATEGORIES.reduce((sum, cat) => {
-    return sum + calculateCategorySpent(cat, currentMonthTransactions, selectedMonth);
-  }, 0);
-
-  const overallBudgetProgress = getBudgetProgress(totalBudgetSpent, totalBudgetPlanned);
-
-  // Budget details for the category filter and circular budget indicator
+  // Category filters use actual expenses recorded in the selected accounting period.
   const categoryStats = EXPENSE_CATEGORIES.map((cat) => {
-    const budgetObj = budgets.find((b) => b.category === cat);
-    const planned = budgetObj
-      ? budgetObj.items?.length ? calculateBudgetTotal(budgetObj.items, selectedMonth) : budgetObj.totalPlanned
-      : 0;
     const spent = calculateCategorySpent(cat, currentMonthTransactions, selectedMonth);
-    const progress = getBudgetProgress(spent, planned);
-    return {
-      category: cat,
-      planned,
-      spent,
-      progress,
-    };
+    return { category: cat, spent };
   });
   const selectedCategoryStats = selectedCategory
     ? categoryStats.find((item) => item.category === selectedCategory)
     : undefined;
-  const activeBudget = selectedCategoryStats
-    ? selectedCategoryStats
-    : { planned: totalBudgetPlanned, spent: totalBudgetSpent, progress: overallBudgetProgress };
-  const remainingRatio = activeBudget.planned > 0
-    ? Math.round((Math.max(0, activeBudget.progress.remaining) / activeBudget.planned) * 100)
+  const displayedExpense = selectedCategoryStats?.spent ?? totalExpense;
+  const remainingAmount = totalIncome - totalExpense;
+  const expenseRatio = totalIncome > 0
+    ? Math.round((displayedExpense / totalIncome) * 100)
+    : displayedExpense > 0 ? 100 : 0;
+  const remainingRatio = totalIncome > 0
+    ? Math.round((Math.max(0, remainingAmount) / totalIncome) * 100)
     : 0;
-  const displayedRatio = showRemainingBudget ? remainingRatio : activeBudget.progress.percentage;
+  const displayedRatio = showRemainingBudget ? remainingRatio : expenseRatio;
   const progressRatio = Math.min(100, Math.max(0, displayedRatio));
   const budgetRingCircumference = 2 * Math.PI * 76;
   const budgetRingSweep = 0.8;
@@ -103,7 +131,7 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
   const budgetRingProgressLength = budgetRingCircumference * budgetRingSweep * progressRatio / 100;
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 pb-20 md:pb-8">
+    <div className="mx-auto w-full max-w-5xl space-y-2 pb-8">
       {/* Month Selector Bar & Title */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-4 py-3 sm:px-5">
         <div>
@@ -113,13 +141,13 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
         </div>
         <div className="flex items-center justify-between gap-4 sm:justify-end">
           <label htmlFor="month-select" className="text-base text-celtic-700 font-medium">
-            เดือน
+            ของเดือน
           </label>
           <select
             id="month-select"
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
-            className="px-4 py-0 text-xs rounded-xl text-celtic-700 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-2xs backdrop-blur-md"
+            className="px-0 py-0 text-xs rounded-xl text-celtic-700 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-2xs backdrop-blur-md"
           >
             {monthOptions.map((month) => (
               <option key={month.value} value={month.value}>{month.label}</option>
@@ -127,9 +155,8 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
           </select>
         </div>
       </div>
-
       {/* Circular budget progress and category filters */}
-      <section className="glass-card p-4" aria-labelledby="budget-progress-heading">
+      <section className="glass-card p-2" aria-labelledby="budget-progress-heading">
         <div className="filter-tag-scroll flex flex-nowrap gap-2 mb-0 overflow-x-auto overscroll-x-contain whitespace-nowrap pb-4" role="group" aria-label="กรองตามหมวดหมู่">
           <button
             type="button"
@@ -160,13 +187,13 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
           ))}
         </div>
 
-        <div className="flex justify-center py-2">
+        <div className="flex justify-center py-1">
           <div className="relative w-64 h-64 max-w-full">
             <svg
               viewBox="0 0 200 200"
               className="w-full h-full"
               role="img"
-              aria-label={`ใช้งบไป ${activeBudget.progress.percentage}%`}
+              aria-label={showRemainingBudget ? `เหลือจากรายรับ ${remainingRatio}%` : `รายจ่ายคิดเป็น ${expenseRatio}% ของรายรับ`}
             >
               <circle
                 cx="100"
@@ -184,12 +211,12 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
                 cy="100"
                 r="76"
                 fill="none"
-                stroke={activeBudget.progress.isExceeded ? '#e11d48' : activeBudget.progress.isWarning ? '#d97706' : '#31D80A'}
+                stroke={remainingAmount < 0 ? '#90242D' : '#31D80A'}
                 strokeWidth="18"
                 strokeLinecap="round"
                 strokeDasharray={`${budgetRingProgressLength} ${budgetRingCircumference - budgetRingProgressLength}`}
                 transform={`rotate(${budgetRingStartAngle} 100 100)`}
-                className="transition-all duration-500"
+                className="progress-ring-glint transition-all duration-500"
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
@@ -203,20 +230,18 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
                 <span className="text-xs font-semibold text-celtic-700 hover:text-emerald-800 underline underline-offset-2">
                   {showRemainingBudget ? 'เหลืองบอีก' : 'งบที่ใช้ไป'}
                 </span>
-                <span className="font-onest text-4xl font-extrabold text-celtic-900 mt-1">
-                  {showRemainingBudget
-                    ? activeBudget.progress.remaining >= 0
-                      ? activeBudget.progress.remaining.toLocaleString('th-TH')
-                      : `เกิน ${Math.abs(activeBudget.progress.remaining).toLocaleString('th-TH')}`
-                    : activeBudget.spent.toLocaleString('th-TH')}
-                </span>
-                {showRemainingBudget && activeBudget.progress.remaining < 0 && (
+                <AnimatedNumber
+                  className="font-onest mt-1 text-4xl font-extrabold text-celtic-900"
+                  value={showRemainingBudget ? Math.abs(remainingAmount) : displayedExpense}
+                  prefix={showRemainingBudget && remainingAmount < 0 ? '−' : ''}
+                />
+                {showRemainingBudget && remainingAmount < 0 && (
                   <span className="text-[10px] text-rose-600 mt-0.5">
-                    เกินงบ {Math.abs(activeBudget.progress.remaining).toLocaleString('th-TH')} บาท
+                    รายจ่ายเกินรายรับ <AnimatedNumber value={Math.abs(remainingAmount)} /> บาท
                   </span>
                 )}
                 <span className="text-sm font-bold text-celtic-800 mt-2">
-                  คิดเป็น {displayedRatio}%
+                  คิดเป็น <AnimatedNumber value={displayedRatio} suffix="%" maximumFractionDigits={0} />
                 </span>
               </button>
             </div>
@@ -225,45 +250,41 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
       </section>
       {/* Income and expense cards */}
       <div className="grid grid-cols-2 gap-3.5">
-        <div className="glass-card p-4.5 rounded-3xl border border-white/80 shadow-xs">
+        <div className="glass-card p-2 rounded-3xl border border-white/80 shadow-xs">
           <div className="flex items-center justify-start mb-2">
             <span className="text-xs font-semibold text-celtic-700">รายรับเดือนนี้</span>
             <div className="w-8 h-8 text-celtic-900 flex items-center justify-center">
               <Wallet className="w-4 h-4" />
             </div>
           </div>
-          <div className="font-onest text-xl sm:text-2xl font-bold text-celtic-900 tracking-tight">
-            +{totalIncome.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}-.
-          </div>
+          <AnimatedNumber className="font-onest text-xl sm:text-2xl font-bold text-celtic-900 tracking-tight" value={totalIncome} suffix="-." />
           <span className="text-[11px] text-celtic-900 font-medium block mt-1">
-            {currentMonthTransactions.filter((t) => t.type === 'income').length} รายการที่บันทึก
+            <AnimatedNumber value={currentMonthTransactions.filter((t) => t.type === 'income').length} suffix=" รายการที่บันทึก" maximumFractionDigits={0} />
           </span>
         </div>
-        <div className="glass-card p-4.5 rounded-3xl border border-white/80 shadow-xs">
+        <div className="glass-card p-2 rounded-3xl border border-white/80 shadow-xs">
           <div className="flex items-center justify-start mb-2">
             <span className="text-xs font-semibold text-celtic-700">รายจ่ายเดือนนี้</span>
             <div className="w-8 h-8 text-celtic-900 flex items-center justify-center">
               <ShoppingBasket className="w-4 h-4" />
             </div>
           </div>
-          <div className="font-onest text-xl sm:text-2xl font-bold text-celtic-800 tracking-tight">
-            -{totalExpense.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}-.
-          </div>
+          <AnimatedNumber className="font-onest text-xl sm:text-2xl font-bold text-celtic-800 tracking-tight" value={totalExpense} suffix="-." />
           <span className="text-[11px] text-celtic-900 block mt-1">
-            {currentMonthTransactions.filter((t) => t.type === 'expense').length} รายการที่บันทึก
+            <AnimatedNumber value={currentMonthTransactions.filter((t) => t.type === 'expense').length} suffix=" รายการที่บันทึก" maximumFractionDigits={0} />
           </span>
         </div>
       </div>
       {/* Floating Action Button helper on desktop */}
       <div className="p-5 glass-card rounded-3xl border border-emerald-400/30 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-apple-300 text-celtic-900 flex items-center justify-center shrink-0">
-            <Sparkles className="w-5 h-5" />
+          <div className="w-8 h-8 rounded-xl bg-apple-300 text-celtic-900 flex items-center justify-center shrink-0">
+            <Sparkles className="w-4 h-4" />
           </div>
           <div>
-            <h4 className="text-sm font-bold text-celtic-900">
+            <h6 className="text-sm font-bold text-celtic-900">
               ต้องการบันทึกค่าใช้จ่ายวันนี้เพิ่มไหม?
-            </h4>
+            </h6>
             <p className="text-xs text-celtic-700">
               จดบันทึกทันทีหลังจ่ายเงินเพื่อควบคุมงบประมาณได้อย่างแม่นยำ
             </p>

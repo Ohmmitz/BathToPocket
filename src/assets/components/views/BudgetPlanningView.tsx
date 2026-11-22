@@ -15,8 +15,10 @@ import {
   ExpenseCategory,
   calculateBudgetTotal,
   getBudgetItemAmount,
+  getWeekdaysInMonth,
 } from '../../utils/finance.ts';
 import { getCategoryInfo } from '../../utils/categoryHelpers.tsx';
+import { SlidingPillToggle } from '../SlidingPillToggle.tsx';
 
 interface BudgetPlanningViewProps {
   budgets: CategoryBudget[];
@@ -25,7 +27,7 @@ interface BudgetPlanningViewProps {
 }
 
 type BudgetItemDraft = Omit<BudgetItem, 'id'>;
-type PlanChoice = 'monthly' | 'six-month';
+type PlanChoice = 'daily' | 'monthly' | 'six-month';
 
 const iconImports = import.meta.glob('../../icon-optimized/*.png', {
   eager: true,
@@ -79,15 +81,24 @@ function BudgetItemForm({
   onSave: (draft: BudgetItemDraft) => Promise<void>;
   onCancel: () => void;
 }) {
-  const initialPlanType = item?.planType === 'none' ? 'none' : item?.planType === 'six-month' ? 'six-month' : 'monthly';
+  const initialPlanType = item?.planType === 'none'
+    ? 'none'
+    : item?.planType === 'daily'
+      ? 'daily'
+      : item?.planType === 'six-month' ? 'six-month' : 'monthly';
   const [name, setName] = useState(item?.name || '');
   const [icon, setIcon] = useState(item?.icon || '');
   const [hasBudget, setHasBudget] = useState(initialPlanType !== 'none');
-  const [planChoice, setPlanChoice] = useState<PlanChoice>(initialPlanType === 'six-month' ? 'six-month' : 'monthly');
+  const [planChoice, setPlanChoice] = useState<PlanChoice>(
+    initialPlanType === 'six-month' ? 'six-month' : initialPlanType === 'daily' ? 'daily' : 'monthly'
+  );
   const [amount, setAmount] = useState(() => {
     if (!item) return '';
+    if (item.planType === 'daily') return String(item.amount || 0);
     return String(getBudgetItemAmount(item, selectedMonth));
   });
+  const selectedMonthWeekdays = getWeekdaysInMonth(selectedMonth);
+  const dailyMonthlyEstimate = (Number(amount) || 0) * selectedMonthWeekdays;
   const [planAmounts, setPlanAmounts] = useState<Record<string, string>>(() => {
     if (!item) return {};
     return Object.fromEntries(months.map((month) => [
@@ -126,6 +137,21 @@ function BudgetItemForm({
       await onSave({
         name: name.trim(), icon: icon || undefined, amount: parsedAmount,
         planType: 'monthly', planMonth: selectedMonth, planAmounts: {},
+      });
+      setIsSaving(false);
+      return;
+    }
+
+    if (planChoice === 'daily') {
+      const dailyAmount = Number(amount);
+      if (amount.trim() === '' || !Number.isFinite(dailyAmount) || dailyAmount <= 0) {
+        setError('กรุณากรอกงบต่อวันทำงานให้ถูกต้อง');
+        return;
+      }
+      setIsSaving(true);
+      await onSave({
+        name: name.trim(), icon: icon || undefined, amount: dailyAmount,
+        planType: 'daily', planMonth: selectedMonth, planAmounts: {},
       });
       setIsSaving(false);
       return;
@@ -207,32 +233,28 @@ function BudgetItemForm({
       </label>
 
       {hasBudget && (
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-2 bg-snow-drift-100 p-2 rounded-full" role="group" aria-label="ระยะเวลาการวางแผนงบ">
-            <button
-              type="button"
-              onClick={() => setPlanChoice('monthly')}
-              aria-pressed={planChoice === 'monthly'}
-              className={`px-3 py-2 rounded-full border text-xs font-semibold ${planChoice === 'monthly' ? 'bg-apple-200 text-celtic-900' : 'bg-snow-drift-50 text-celtic-700'}`}
-            >
-              เดือนเดียว
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPlanChoice('six-month');
+        <div className="space-y-2">
+          <SlidingPillToggle
+            value={planChoice}
+            onChange={(nextChoice) => {
+              const choice = nextChoice as PlanChoice;
+              setPlanChoice(choice);
+              if (choice === 'six-month') {
                 setPlanAmounts((current) => Object.fromEntries(months.map((month) => [month, current[month] ?? amount])));
-              }}
-              aria-pressed={planChoice === 'six-month'}
-              className={`px-3 py-2 rounded-full border text-xs font-semibold ${planChoice === 'six-month' ? 'bg-apple-200 text-celtic-900' : 'bg-snow-drift-50 text-celtic-700'}`}
-            >
-              ล่วงหน้า
-            </button>
-          </div>
+              }
+            }}
+            ariaLabel="ระยะเวลาการวางแผนงบ"
+            className="w-full"
+            options={[
+              { value: 'daily', label: 'รายวัน' },
+              { value: 'monthly', label: 'รายเดือน' },
+              { value: 'six-month', label: 'ล่วงหน้า' },
+            ]}
+          />
 
-          {planChoice === 'monthly' ? (
+          {planChoice === 'monthly' || planChoice === 'daily' ? (
             <label className="block text-xs font-semibold text-gray-700">
-              จำนวนงบต่อเดือน
+              {planChoice === 'daily' ? 'งบต่อวันทำงาน (จันทร์–ศุกร์)' : 'จำนวนงบต่อเดือน'}
               <div className="relative mt-1 w-full">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></span>
                 <input
@@ -242,6 +264,11 @@ function BudgetItemForm({
                   className="font-onest w-full pl-4 pr-4 py-4 bg-white border border-gray-300 rounded-xl text-gray-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
               </div>
+              {planChoice === 'daily' && (
+                <span className="mt-1 block text-[11px] font-normal text-celtic-700">
+                  {selectedMonthWeekdays} วันทำงานในเดือนนี้ · รวม {dailyMonthlyEstimate.toLocaleString('th-TH')}
+                </span>
+              )}
             </label>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -313,6 +340,13 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
   });
   const selectedBudget = normalizedBudgets.find((budget) => budget.category === activeCategory) || normalizedBudgets[0];
   const totalPlannedOverall = normalizedBudgets.reduce((sum, budget) => sum + budget.totalPlanned, 0);
+  const budgetRingCircumference = 2 * Math.PI * 76;
+  const budgetRingSweep = 0.8;
+  const budgetRingStartAngle = 126;
+  const selectedCategoryPlanRatio = totalPlannedOverall > 0
+    ? Math.round((selectedBudget.totalPlanned / totalPlannedOverall) * 100)
+    : 0;
+  const selectedCategoryProgressLength = budgetRingCircumference * budgetRingSweep * selectedCategoryPlanRatio / 100;
 
   const handleStartAddItem = () => {
     setEditingItemId(null);
@@ -346,7 +380,7 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 pb-20 md:pb-8">
+    <div className="mx-auto w-full max-w-5xl space-y-2 pb-8">
       <div className="glass-card p-5.5 rounded-3xl border border-white/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -367,8 +401,8 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
       </div>
 
       <div className="p-3.5 bg-blue-500/10 border border-blue-400/30 rounded-2xl text-blue-900 text-xs flex items-center gap-2.5">
-        <AlertCircle className="w-4 h-4 shrink-0 text-blue-600" />
-        <span>กำหนดงบเป็นรายเดือนหรือแยกยอดล่วงหน้า 6 เดือนก็ได้ และสามารถบันทึกรายการโดยไม่ตั้งงบประมาณ</span>
+        <AlertCircle className="w-4 h-4 shrink-0 text-celtic-700" />
+        <span>กำหนดงบรายวันตามวันทำงาน รายเดือน หรือล่วงหน้า 6 เดือนก็ได้ และสามารถบันทึกรายการโดยไม่ตั้งงบประมาณ</span>
       </div>
 
       <div className="filter-tag-scroll flex flex-nowrap gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap pb-1" role="group" aria-label="เลือกหมวดหมู่งบประมาณ">
@@ -388,6 +422,51 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
           </button>
         ))}
       </div>
+
+      <section className="glass-card rounded-3xl p-4 sm:p-5" aria-labelledby="budget-share-heading">
+        <div className="flex justify-center">
+          <div
+            className="relative h-64 w-64 max-w-full"
+            role="img"
+            aria-label={`${activeCategory}: ${selectedCategoryPlanRatio}% ของงบรวมทั้งหมด ${totalPlannedOverall.toLocaleString('th-TH')} บาท`}
+          >
+            <svg viewBox="0 0 200 200" className="h-full w-full" aria-hidden="true">
+              <circle
+                cx="100"
+                cy="100"
+                r="76"
+                fill="none"
+                stroke="rgba(15, 23, 42, 0.08)"
+                strokeWidth="24"
+                strokeLinecap="round"
+                strokeDasharray={`${budgetRingCircumference * budgetRingSweep} ${budgetRingCircumference * (1 - budgetRingSweep)}`}
+                transform={`rotate(${budgetRingStartAngle} 100 100)`}
+              />
+              <circle
+                cx="100"
+                cy="100"
+                r="76"
+                fill="none"
+                stroke="#31D80A"
+                strokeWidth="18"
+                strokeLinecap="round"
+                strokeDasharray={`${selectedCategoryProgressLength} ${budgetRingCircumference - selectedCategoryProgressLength}`}
+                transform={`rotate(${budgetRingStartAngle} 100 100)`}
+                className="progress-ring-glint transition-all duration-500"
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center">
+              <span className="text-xs font-semibold text-celtic-700">งบแพลนทั้งหมด</span>
+              <span className="font-onest mt-1 text-3xl font-medium text-celtic-900">
+                {totalPlannedOverall.toLocaleString('th-TH')}
+              </span>
+              <span className="mt-2 text-sm font-bold text-celtic-800">
+                {selectedCategoryPlanRatio}% ของงบรวม
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section className="glass-card rounded-3xl border border-white/80 shadow-xs overflow-hidden">
         <div className="relative overflow-hidden bg-white/40">
@@ -512,7 +591,13 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
                                 <div className="min-w-0">
                                   <p className="text-sm font-semibold text-gray-900 truncate">{item.name}</p>
                                   <p className="text-[11px] text-gray-500">
-                                    {item.planType === 'none' ? 'ยังไม่กำหนดงบ' : item.planType === 'six-month' ? 'แผน 6 เดือน' : 'แผนรายเดือน · ใช้ทุกเดือน'}
+                                    {item.planType === 'none'
+                                      ? 'ยังไม่กำหนดงบ'
+                                      : item.planType === 'six-month'
+                                        ? 'แผนล่วงหน้า 6 เดือน'
+                                        : item.planType === 'daily'
+                                          ? `แผนรายวัน | ${Number(item.amount).toLocaleString('th-TH')} บาทต่่อวันทำงาน`
+                                          : 'แผนรายเดือน | ใช้ทุกเดือน'}
                                   </p>
                                 </div>
                               </div>

@@ -44,6 +44,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
   const [newInitial, setNewInitial] = useState('');
   const [newMonthlyPlan, setNewMonthlyPlan] = useState('');
   const [newNotes, setNewNotes] = useState('');
+  const [showTotalTarget, setShowTotalTarget] = useState(false);
 
   // Total accumulated savings
   const totalAccumulatedSavings = savings.reduce((sum, g) => sum + (Number(g.currentAmount) || 0), 0);
@@ -51,6 +52,10 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
   const overallPercentage = totalTargetSavings > 0 
     ? Math.min(100, Math.round((totalAccumulatedSavings / totalTargetSavings) * 100)) 
     : 0;
+  const savingsRingCircumference = 2 * Math.PI * 76;
+  const savingsRingSweep = 0.8;
+  const savingsRingStartAngle = 126;
+  const savingsRingProgressLength = savingsRingCircumference * savingsRingSweep * overallPercentage / 100;
 
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,7 +99,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 pb-20 md:pb-8">
+    <div className="mx-auto w-full max-w-5xl space-y-2 pb-8">
       {/* Top Header Card */}
       <div className="glass-card p-4 rounded-3xl border border-white/80 shadow-xs flex flex-row sm:items-center justify-between gap-4">
         <div>
@@ -115,30 +120,55 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
       </div>
 
       {/* Savings Summary Banner */}
-      <div className="bg-apple-200/12 text-celtic-900 rounded-2xl p-4 sm:p-6 relative overflow-hidden">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <span className="text-sm tracking-wide text-celtic-700">
-              ยอดเงินออมสะสมรวมทุกเป้าหมาย
-            </span>
-            <div className="font-onest text-4xl sm:text-4xl tracking-tight mt-1 text-celtic-900">
-              {totalAccumulatedSavings.toLocaleString('th-TH')}
-            </div>
-            <span className="text-sm text-celtic-700 mt-1 block">
-              จากเป้าหมายรวม <span className="font-onest">{totalTargetSavings.toLocaleString('th-TH')} </span>
-            </span>
-          </div>
-
-          <div className="w-full md:w-64 space-y-2">
-            <div className="flex justify-between text-sm text-celtic-700">
-              <span>ความคืบหน้ารวม</span>
-              <span className="font-onest font-bold">{overallPercentage}%</span>
-            </div>
-            <div className="w-full bg-snow-drift-100 rounded-full h-4 overflow-hidden">
-              <div
-                className="bg-apple-400 h-full rounded-full transition-all duration-500"
-                style={{ width: `${overallPercentage}%` }}
+      <div className="rounded-3xl p-2 text-celtic-900 sm:p-6">
+        <div className="flex flex-col items-center gap-3">
+          <div className="relative h-64 w-64 max-w-full">
+            <svg
+              viewBox="0 0 200 200"
+              className="h-full w-full"
+              role="img"
+              aria-label={`ออมได้ ${overallPercentage}% จากเป้าหมายรวม`}
+            >
+              <circle
+                cx="100"
+                cy="100"
+                r="76"
+                fill="none"
+                stroke="rgba(15, 23, 42, 0.08)"
+                strokeWidth="24"
+                strokeLinecap="round"
+                strokeDasharray={`${savingsRingCircumference * savingsRingSweep} ${savingsRingCircumference * (1 - savingsRingSweep)}`}
+                transform={`rotate(${savingsRingStartAngle} 100 100)`}
               />
+              <circle
+                cx="100"
+                cy="100"
+                r="76"
+                fill="none"
+                stroke="#31D80A"
+                strokeWidth="18"
+                strokeLinecap="round"
+                strokeDasharray={`${savingsRingProgressLength} ${savingsRingCircumference - savingsRingProgressLength}`}
+                transform={`rotate(${savingsRingStartAngle} 100 100)`}
+                className="progress-ring-glint transition-all duration-500"
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center px-8 text-center">
+              <button
+                type="button"
+                onClick={() => setShowTotalTarget((current) => !current)}
+                className="flex flex-col items-center rounded-2xl p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
+                aria-label="สลับระหว่างยอดออมสะสมรวมกับเป้าหมายรวม"
+                aria-pressed={showTotalTarget}
+              >
+                <span className="text-xs font-semibold text-celtic-700">
+                  {showTotalTarget ? 'เป้าหมายรวมทุกเป้าหมาย' : 'ยอดเงินออมสะสมรวม'}
+                </span>
+                <span className="font-onest mt-1 text-3xl font-medium text-celtic-900">
+                  {(showTotalTarget ? totalTargetSavings : totalAccumulatedSavings).toLocaleString('th-TH')}
+                </span>
+                <span className="mt-2 text-sm font-bold text-celtic-800">{overallPercentage}% สำเร็จ</span>
+              </button>
             </div>
           </div>
         </div>
@@ -146,14 +176,6 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
 
       {/* Quick Deposit Form */}
       <div className="glass-card p-6 rounded-3xl border border-white/80 shadow-xs">
-        <div className="flex items-center gap-2.5 mb-4">
-          <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-800 flex items-center justify-center shadow-2xs border border-emerald-300/40">
-            <ArrowUpRight className="w-4 h-4" />
-          </div>
-          <h2 className="text-base font-bold text-gray-900">
-            บันทึกเงินออมประจำเดือนนี้
-          </h2>
-        </div>
 
         <form onSubmit={handleDepositSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
