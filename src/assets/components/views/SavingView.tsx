@@ -179,6 +179,22 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
 
         <form onSubmit={handleDepositSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Deposit Date */}
+            <div>
+              <label htmlFor="deposit-date" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
+                วันที่ฝากออม
+              </label>
+              <div className="relative">
+                <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-celtic-700" />
+                <input
+                  id="deposit-date"
+                  type="date"
+                  value={depositDate}
+                  onChange={(e) => setDepositDate(e.target.value)}
+                  className="w-fit pl-9 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+            </div>
             {/* Target Goal Selector */}
             <div>
               <label htmlFor="goal-select" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
@@ -199,7 +215,6 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                 ))}
               </select>
             </div>
-
             {/* Deposit Amount */}
             <div>
               <label htmlFor="deposit-amount" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
@@ -215,24 +230,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                   value={depositAmount}
                   onChange={(e) => setDepositAmount(e.target.value)}
                   placeholder="เช่น 1000, 5000"
-                  className="w-full pl-8 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-900 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none font-onest"
-                />
-              </div>
-            </div>
-
-            {/* Deposit Date */}
-            <div>
-              <label htmlFor="deposit-date" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                วันที่ฝากออม
-              </label>
-              <div className="relative">
-                <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  id="deposit-date"
-                  type="date"
-                  value={depositDate}
-                  onChange={(e) => setDepositDate(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  className="w-full pl-2 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-900 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
             </div>

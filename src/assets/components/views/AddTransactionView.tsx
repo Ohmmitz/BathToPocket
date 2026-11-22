@@ -387,7 +387,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
           )}
         </div>
         {/* Date and Time Fields */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        <div className="grid grid-cols-2 gap-4">
           <div>
             <label htmlFor="tx-date" className="block text-xs font-bold uppercase text-celtic-700 mb-4">
               วันที่
@@ -400,7 +400,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
                 required
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-transparent border border-white/90 rounded-2xl text-xs font-medium text-celtic-900 focus:bg-snow-drift-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                className="w-fit pl-9 pr-3 py-2.5 bg-transparent border border-white/90 rounded-2xl text-xs font-medium text-celtic-900 focus:bg-snow-drift-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
               />
             </div>
           </div>
@@ -415,7 +415,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-transparent border border-white/90 rounded-2xl text-xs font-medium text-celtic-900 focus:bg-snow-drift-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                className="w-fit pl-9 pr-3 py-2.5 bg-transparent border border-white/90 rounded-2xl text-xs font-medium text-celtic-900 focus:bg-snow-drift-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
               />
             </div>
           </div>
