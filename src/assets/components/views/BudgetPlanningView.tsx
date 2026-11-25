@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
+  ArrowLeft,
   Target,
   Plus,
   Trash2,
@@ -7,18 +8,26 @@ import {
   Check,
   X,
   AlertCircle,
+  Circle,
+  CircleCheck,
 } from 'lucide-react';
 import {
   CategoryBudget,
   BudgetItem,
+  BudgetCategory,
   EXPENSE_CATEGORIES,
-  ExpenseCategory,
+  INCOME_CATEGORIES,
+  LEGACY_INCOME_CATEGORIES,
+  DEFAULT_INCOME_SOURCE_ITEMS,
+  TransactionType,
   calculateBudgetTotal,
   getBudgetItemAmount,
-  getWeekdaysInMonth,
+  getSelectedDaysInMonth,
 } from '../../utils/finance.ts';
 import { getCategoryInfo } from '../../utils/categoryHelpers.tsx';
 import { SlidingPillToggle } from '../SlidingPillToggle.tsx';
+import { ParliamentChart } from '../ParliamentChart.tsx';
+import { AnimatedNumber } from '../AnimatedNumber.tsx';
 
 interface BudgetPlanningViewProps {
   budgets: CategoryBudget[];
@@ -28,6 +37,19 @@ interface BudgetPlanningViewProps {
 
 type BudgetItemDraft = Omit<BudgetItem, 'id'>;
 type PlanChoice = 'daily' | 'monthly' | 'six-month';
+type BudgetItemFormPage =
+  | { mode: 'add'; category: BudgetCategory }
+  | { mode: 'edit'; category: BudgetCategory; item: BudgetItem };
+const WEEKDAYS = [
+  { value: 0, label: 'อา', name: 'วันอาทิตย์' },
+  { value: 1, label: 'จ', name: 'วันจันทร์' },
+  { value: 2, label: 'อ', name: 'วันอังคาร' },
+  { value: 3, label: 'พ', name: 'วันพุธ' },
+  { value: 4, label: 'พฤ', name: 'วันพฤหัสบดี' },
+  { value: 5, label: 'ศ', name: 'วันศุกร์' },
+  { value: 6, label: 'ส', name: 'วันเสาร์' },
+];
+const DEFAULT_PLAN_DAYS = [1, 2, 3, 4, 5];
 
 const iconImports = import.meta.glob('../../icon-optimized/*.png', {
   eager: true,
@@ -66,6 +88,13 @@ function getSixMonths(startMonth: string): string[] {
   });
 }
 
+function getPlanTypeLabel(planType?: BudgetItem['planType']): string {
+  if (planType === 'daily') return 'รายวัน';
+  if (planType === 'six-month') return 'กำหนดเอง';
+  if (planType === 'none') return 'ไม่กำหนดงบ';
+  return 'รายเดือน';
+}
+
 function BudgetItemForm({
   item,
   months,
@@ -92,13 +121,14 @@ function BudgetItemForm({
   const [planChoice, setPlanChoice] = useState<PlanChoice>(
     initialPlanType === 'six-month' ? 'six-month' : initialPlanType === 'daily' ? 'daily' : 'monthly'
   );
+  const [planDays, setPlanDays] = useState<number[]>(item?.planDays ?? DEFAULT_PLAN_DAYS);
   const [amount, setAmount] = useState(() => {
     if (!item) return '';
     if (item.planType === 'daily') return String(item.amount || 0);
     return String(getBudgetItemAmount(item, selectedMonth));
   });
-  const selectedMonthWeekdays = getWeekdaysInMonth(selectedMonth);
-  const dailyMonthlyEstimate = (Number(amount) || 0) * selectedMonthWeekdays;
+  const selectedMonthDayCount = getSelectedDaysInMonth(selectedMonth, planDays);
+  const dailyMonthlyEstimate = (Number(amount) || 0) * selectedMonthDayCount;
   const [planAmounts, setPlanAmounts] = useState<Record<string, string>>(() => {
     if (!item) return {};
     return Object.fromEntries(months.map((month) => [
@@ -145,13 +175,17 @@ function BudgetItemForm({
     if (planChoice === 'daily') {
       const dailyAmount = Number(amount);
       if (amount.trim() === '' || !Number.isFinite(dailyAmount) || dailyAmount <= 0) {
-        setError('กรุณากรอกงบต่อวันทำงานให้ถูกต้อง');
+        setError('กรุณากรอกงบต่อวันที่เลือกให้ถูกต้อง');
+        return;
+      }
+      if (planDays.length === 0) {
+        setError('กรุณาเลือกวันที่ต้องการคิดงบอย่างน้อย 1 วัน');
         return;
       }
       setIsSaving(true);
       await onSave({
         name: name.trim(), icon: icon || undefined, amount: dailyAmount,
-        planType: 'daily', planMonth: selectedMonth, planAmounts: {},
+        planType: 'daily', planMonth: selectedMonth, planAmounts: {}, planDays,
       });
       setIsSaving(false);
       return;
@@ -182,7 +216,7 @@ function BudgetItemForm({
     <div className="p-4 bg-snow-drift-100/25 rounded-2xl border border-emerald-200 space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="text-xs font-semibold text-gray-700">
-          ชื่อรายการค่าใช้จ่าย
+          ชื่อรายการ
           <input
             type="text"
             value={name}
@@ -254,20 +288,47 @@ function BudgetItemForm({
 
           {planChoice === 'monthly' || planChoice === 'daily' ? (
             <label className="block text-xs font-semibold text-gray-700">
-              {planChoice === 'daily' ? 'งบต่อวันทำงาน (จันทร์–ศุกร์)' : 'จำนวนงบต่อเดือน'}
+              {planChoice === 'daily' ? 'งบต่อวันที่เลือก' : 'จำนวนงบต่อเดือน'}
               <div className="relative mt-1 w-full">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></span>
                 <input
                   type="number" min="0" value={amount}
                   onChange={(event) => setAmount(event.target.value)}
                   placeholder="0.00"
-                  className="font-onest w-full pl-4 pr-4 py-4 bg-white border border-gray-300 rounded-xl text-gray-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full pl-4 pr-4 py-4 bg-white border border-gray-300 rounded-xl text-gray-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
               </div>
               {planChoice === 'daily' && (
-                <span className="mt-1 block text-[11px] font-normal text-celtic-700">
-                  {selectedMonthWeekdays} วันทำงานในเดือนนี้ · รวม {dailyMonthlyEstimate.toLocaleString('th-TH')}
-                </span>
+                <div className="mt-3 space-y-2">
+                  <span className="block text-[11px] font-medium text-celtic-700">เลือกวันที่ต้องการคิดงบในแต่ละสัปดาห์</span>
+                  <div className="grid grid-cols-7 gap-1.5" role="group" aria-label="เลือกวันในสัปดาห์สำหรับแพลนรายวัน">
+                    {WEEKDAYS.map((weekday) => {
+                      const isSelected = planDays.includes(weekday.value);
+                      return (
+                        <button
+                          key={weekday.value}
+                          type="button"
+                          onClick={() => setPlanDays((current) => (
+                            isSelected
+                              ? current.filter((day) => day !== weekday.value)
+                              : [...current, weekday.value].sort((a, b) => a - b)
+                          ))}
+                          aria-label={weekday.name}
+                          aria-pressed={isSelected}
+                          className="flex min-w-0 flex-col items-center justify-center gap-[5px] rounded-[23px] bg-snow-drift-100 px-[7px] pb-[7px] pt-[14px] text-celtic-700 transition-colors hover:bg-apple-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
+                        >
+                          <span className="text-[11px] leading-none">{weekday.label}</span>
+                          {isSelected
+                            ? <CircleCheck className="h-7 w-7 text-celtic-900" aria-hidden="true" />
+                            : <Circle className="h-7 w-7 fill-snow-drift-200 text-snow-drift-200" aria-hidden="true" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <span className="block text-[11px] font-normal text-celtic-700">
+                    {selectedMonthDayCount} วันที่เลือกในเดือนนี้ · รวม {dailyMonthlyEstimate.toLocaleString('th-TH')} บาท
+                  </span>
+                </div>
               )}
             </label>
           ) : (
@@ -318,42 +379,107 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
     return { value, label: monthLabel(value) };
   });
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
-  const [activeCategory, setActiveCategory] = useState<ExpenseCategory>(EXPENSE_CATEGORIES[0]);
-  const [addingCategory, setAddingCategory] = useState<ExpenseCategory | null>(null);
-  const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [revealedActionItemId, setRevealedActionItemId] = useState<string | null>(null);
-  const [isAddActionRevealed, setIsAddActionRevealed] = useState(false);
-  const swipeStartRef = useRef<{ itemId: string; x: number; y: number } | null>(null);
-  const categorySwipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [planKind, setPlanKind] = useState<TransactionType>('expense');
+  const [activeCategory, setActiveCategory] = useState<BudgetCategory>(EXPENSE_CATEGORIES[0]);
+  const [showCategoryBudget, setShowCategoryBudget] = useState(false);
+  const [formPage, setFormPage] = useState<BudgetItemFormPage | null>(null);
+  const [selectedPlanItem, setSelectedPlanItem] = useState<BudgetItem | null>(null);
+  const [selectedPlanItemCategory, setSelectedPlanItemCategory] = useState<BudgetCategory | null>(null);
   const sixMonths = getSixMonths(selectedMonth);
 
-  const normalizedBudgets: CategoryBudget[] = EXPENSE_CATEGORIES.map((category) => {
+  const allPlanCategories: BudgetCategory[] = [...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES];
+  const activeCategories: readonly BudgetCategory[] = planKind === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+  const normalizedBudgets: CategoryBudget[] = allPlanCategories.map((category) => {
     const existing = budgets.find((budget) =>
       budget.category === category || (category === 'หนี้สิน' && String(budget.category) === 'เงินออม')
     );
-    const items = existing?.items || [];
+    const legacyIncomeBudgets = category === 'รายได้'
+      ? budgets.filter((budget) => LEGACY_INCOME_CATEGORIES.includes(budget.category as typeof LEGACY_INCOME_CATEGORIES[number]))
+      : [];
+    const defaultIncomeItems = DEFAULT_INCOME_SOURCE_ITEMS
+      .filter((source) => source.category === category)
+      .map((source) => source.item);
+    const legacyIncomeItems = legacyIncomeBudgets.flatMap((budget) => budget.items || []);
+    const storedIncomeItems = [...legacyIncomeItems, ...(existing?.items || [])]
+      .filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index);
+    const hasCanonicalIncomeBudget = category === 'รายได้' && Boolean(existing);
+    const items = category === 'รายได้'
+      ? storedIncomeItems.length > 0
+        ? storedIncomeItems
+        : hasCanonicalIncomeBudget
+          ? []
+          : defaultIncomeItems
+      : existing ? existing.items || [] : defaultIncomeItems;
     return {
       category,
       items,
       totalPlanned: items.length ? calculateBudgetTotal(items, selectedMonth) : Number(existing?.totalPlanned) || 0,
     };
   });
-  const selectedBudget = normalizedBudgets.find((budget) => budget.category === activeCategory) || normalizedBudgets[0];
-  const totalPlannedOverall = normalizedBudgets.reduce((sum, budget) => sum + budget.totalPlanned, 0);
-  const budgetRingCircumference = 2 * Math.PI * 76;
-  const budgetRingSweep = 0.8;
-  const budgetRingStartAngle = 126;
+  const activeBudgets = normalizedBudgets.filter((budget) => activeCategories.includes(budget.category));
+  const selectedBudget = activeBudgets.find((budget) => budget.category === activeCategory) || activeBudgets[0];
+  const totalPlannedOverall = activeBudgets.reduce((sum, budget) => sum + budget.totalPlanned, 0);
   const selectedCategoryPlanRatio = totalPlannedOverall > 0
-    ? Math.round((selectedBudget.totalPlanned / totalPlannedOverall) * 100)
+    ? (planKind === 'income' ? 100 : Math.round((selectedBudget.totalPlanned / totalPlannedOverall) * 100))
     : 0;
-  const selectedCategoryProgressLength = budgetRingCircumference * budgetRingSweep * selectedCategoryPlanRatio / 100;
 
-  const handleStartAddItem = () => {
-    setEditingItemId(null);
-    setAddingCategory(activeCategory);
+  const handleStartAddItem = (category: BudgetCategory) => {
+    setFormPage({ mode: 'add', category });
   };
 
-  const handleSaveItem = async (category: ExpenseCategory, draft: BudgetItemDraft, existingItem?: BudgetItem) => {
+  const renderBudgetItem = (category: BudgetCategory, item: BudgetItem) => {
+    const icon = availableIcons.find((option) => option.file === item.icon);
+    const displayAmount = getBudgetItemAmount(item, selectedMonth);
+    return (
+      <button
+        key={item.id}
+        type="button"
+        onClick={() => {
+          setSelectedPlanItem(item);
+          setSelectedPlanItemCategory(category);
+        }}
+        aria-label={`ดูรายละเอียดแพลน ${item.name}`}
+        className="flex min-h-56 min-w-0 flex-col items-center justify-center gap-3 rounded-2xl bg-snow-drift-100/50 p-3 transition-colors hover:bg-snow-drift-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
+      >
+        <span className="flex h-16 w-full shrink-0 items-center justify-center">
+          {icon
+            ? <img src={icon.src} alt="" loading="lazy" className="h-16 w-16 object-contain" />
+            : <span className="text-2xl" aria-hidden="true">{getCategoryInfo(category).emoji}</span>}
+        </span>
+        <span className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <span className="flex min-w-0 flex-1 flex-col items-start gap-2 text-left">
+            <span className="line-clamp-2 break-words text-base font-medium leading-tight text-celtic-900 sm:text-2xl">{item.name}</span>
+            <span className="rounded-full bg-snow-drift-50 px-2.5 py-1 text-xs font-medium text-celtic-700">
+              {getPlanTypeLabel(item.planType)}
+            </span>
+          </span>
+          <span className="flex min-w-0 shrink-0 flex-col items-end self-end text-right sm:self-auto">
+            <span className="max-w-full break-all font-onest text-2xl font-medium leading-tight text-celtic-900 sm:text-[32px]">
+              {item.planType === 'none' ? '—' : displayAmount.toLocaleString('th-TH')}
+            </span>
+            {item.planType !== 'none' && <span className="text-xs text-celtic-700">บาท</span>}
+          </span>
+        </span>
+      </button>
+    );
+  };
+
+  const renderAddCard = (category: BudgetCategory) => (
+    <button
+      key={`add-${category}`}
+      type="button"
+      onClick={() => handleStartAddItem(category)}
+      className="flex min-h-56 flex-col items-center justify-center gap-3 rounded-2xl bg-snow-drift-100/50 p-4 text-center text-celtic-900 transition-colors hover:bg-apple-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
+      aria-label={`เพิ่ม${planKind === 'expense' ? 'ค่าใช้จ่าย' : 'รายการรายรับ'}ในหมวด${category}`}
+    >
+      <Plus className="h-10 w-10" aria-hidden="true" />
+      <span className="text-base font-medium">เพิ่ม{planKind === 'expense' ? 'ค่าใช้จ่าย' : 'รายรับ'} · {category}</span>
+    </button>
+  );
+
+  const detailCategory = selectedPlanItemCategory || activeCategory;
+
+  const handleSaveItem = async (category: BudgetCategory, draft: BudgetItemDraft, existingItem?: BudgetItem) => {
     const savedItem: BudgetItem = {
       ...draft,
       id: existingItem?.id || `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -366,11 +492,11 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
       return { ...budget, items: nextItems, totalPlanned: calculateBudgetTotal(nextItems, selectedMonth) };
     });
     await onUpdateBudgets(updated);
-    setAddingCategory(null);
-    setEditingItemId(null);
+    setFormPage(null);
+    setSelectedPlanItem(null);
   };
 
-  const handleDeleteItem = async (category: ExpenseCategory, itemId: string) => {
+  const handleDeleteItem = async (category: BudgetCategory, itemId: string) => {
     const updated = normalizedBudgets.map((budget) => {
       if (budget.category !== category) return budget;
       const nextItems = budget.items.filter((item) => item.id !== itemId);
@@ -378,6 +504,48 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
     });
     await onUpdateBudgets(updated);
   };
+
+  if (formPage) {
+    const isEditing = formPage.mode === 'edit';
+    const itemKindLabel = planKind === 'expense' ? 'ค่าใช้จ่าย' : 'รายรับ';
+    const formItem = formPage.mode === 'edit' ? formPage.item : undefined;
+    const formMonths = formItem?.planType === 'six-month' && formItem.planMonth
+      ? getSixMonths(formItem.planMonth)
+      : sixMonths;
+
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-5 pb-8">
+        <button
+          type="button"
+          onClick={() => setFormPage(null)}
+          className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-celtic-800 transition-colors hover:bg-snow-drift-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          กลับไปแพลนงบประมาณ
+        </button>
+
+        <header className="space-y-1">
+          <p className="text-sm text-celtic-700">{formPage.category} · {monthLabel(selectedMonth)}</p>
+          <h1 className="text-2xl font-medium text-celtic-900">
+            {isEditing ? `แก้ไขรายการ${itemKindLabel}` : `เพิ่มรายการ${itemKindLabel}`}
+          </h1>
+          <p className="text-sm text-celtic-700">ระบุชื่อ ไอคอน และรูปแบบงบประมาณของรายการ</p>
+        </header>
+
+        <section className="rounded-3xl bg-snow-drift-50 p-4 sm:p-6" aria-label={`${isEditing ? 'แก้ไข' : 'เพิ่ม'}รายการ${itemKindLabel}`}>
+          <BudgetItemForm
+            key={`${formPage.mode}-${formItem?.id || formPage.category}-${selectedMonth}`}
+            item={formItem}
+            months={formMonths}
+            selectedMonth={selectedMonth}
+            planStartMonth={formItem?.planType === 'six-month' ? formItem.planMonth || selectedMonth : selectedMonth}
+            onCancel={() => setFormPage(null)}
+            onSave={(draft) => handleSaveItem(formPage.category, draft, formItem)}
+          />
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-2 pb-8">
@@ -387,263 +555,215 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
             <h1 className="text-xl font-bold text-celtic-900">แพลนงบประมาณ</h1>
           </div>
         </div>
-        <div className="flex items-center gap-4 self-stretch">
-          <label htmlFor="budget-month-select" className="text-xs text-celtic-700 font-medium">เดือน</label>
+        <div className="flex items-center justify-between gap-4 sm:justify-end">
+          <label htmlFor="budget-month-select" className="text-base text-celtic-700 font-medium">ของเดือน</label>
           <select
             id="budget-month-select"
             value={selectedMonth}
             onChange={(event) => setSelectedMonth(event.target.value)}
-            className="px-3.5 py-2 text-xs bg-white/80 border border-white/90 rounded-xl text-gray-800 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            className="px-0 py-0 text-xs rounded-xl text-celtic-700 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-2xs backdrop-blur-md"
           >
             {monthOptions.map((month) => <option key={month.value} value={month.value}>{month.label}</option>)}
           </select>
         </div>
       </div>
-
-      <div className="p-3.5 bg-blue-500/10 border border-blue-400/30 rounded-2xl text-blue-900 text-xs flex items-center gap-2.5">
-        <AlertCircle className="w-4 h-4 shrink-0 text-celtic-700" />
-        <span>กำหนดงบรายวันตามวันทำงาน รายเดือน หรือล่วงหน้า 6 เดือนก็ได้ และสามารถบันทึกรายการโดยไม่ตั้งงบประมาณ</span>
-      </div>
-
-      <div className="filter-tag-scroll flex flex-nowrap gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap pb-1" role="group" aria-label="เลือกหมวดหมู่งบประมาณ">
-        {EXPENSE_CATEGORIES.map((category) => (
-          <button
-            key={category}
-            type="button"
-            onClick={() => { setActiveCategory(category); setAddingCategory(null); setEditingItemId(null); setIsAddActionRevealed(false); }}
-            aria-pressed={activeCategory === category}
-            className={`shrink-0 px-3.5 py-2 rounded-full border text-xs font-semibold transition-colors ${
-              activeCategory === category
-                ? 'bg-apple-200 text-celtic-900'
-                : 'bg-snow-drift-100 text-celtic-700'
-            }`}
-          >
-            {category}
-          </button>
-        ))}
-      </div>
+      <SlidingPillToggle
+        value={planKind}
+        onChange={(nextKind) => {
+          const kind = nextKind as TransactionType;
+          setPlanKind(kind);
+          setActiveCategory(kind === 'expense' ? EXPENSE_CATEGORIES[0] : INCOME_CATEGORIES[0]);
+          setFormPage(null);
+          setSelectedPlanItem(null);
+          setSelectedPlanItemCategory(null);
+          setShowCategoryBudget(false);
+        }}
+        ariaLabel="เลือกประเภทแพลน"
+        compact
+        className="mx-auto w-full max-w-[160px]"
+        pillClassName="bg-celtic-900"
+        activeTextClassName="text-snow-drift-50"
+        inactiveTextClassName="text-celtic-700 hover:text-celtic-900"
+        options={[
+          { value: 'expense', label: 'รายจ่าย' },
+          { value: 'income', label: 'รายรับ' },
+        ]}
+      />
 
       <section className="glass-card rounded-3xl p-4 sm:p-5" aria-labelledby="budget-share-heading">
         <div className="flex justify-center">
-          <div
-            className="relative h-64 w-64 max-w-full"
-            role="img"
-            aria-label={`${activeCategory}: ${selectedCategoryPlanRatio}% ของงบรวมทั้งหมด ${totalPlannedOverall.toLocaleString('th-TH')} บาท`}
+          <ParliamentChart
+            className="max-w-96"
+            percentage={selectedCategoryPlanRatio}
+            ariaLabel={`${planKind === 'income' ? 'รายรับรวม' : activeCategory}: ${selectedCategoryPlanRatio}% ของ${planKind === 'expense' ? 'งบรายจ่าย' : 'รายรับ'}ทั้งหมด ${totalPlannedOverall.toLocaleString('th-TH')} บาท`}
           >
-            <svg viewBox="0 0 200 200" className="h-full w-full" aria-hidden="true">
-              <circle
-                cx="100"
-                cy="100"
-                r="76"
-                fill="none"
-                stroke="rgba(15, 23, 42, 0.08)"
-                strokeWidth="24"
-                strokeLinecap="round"
-                strokeDasharray={`${budgetRingCircumference * budgetRingSweep} ${budgetRingCircumference * (1 - budgetRingSweep)}`}
-                transform={`rotate(${budgetRingStartAngle} 100 100)`}
-              />
-              <circle
-                cx="100"
-                cy="100"
-                r="76"
-                fill="none"
-                stroke="#31D80A"
-                strokeWidth="18"
-                strokeLinecap="round"
-                strokeDasharray={`${selectedCategoryProgressLength} ${budgetRingCircumference - selectedCategoryProgressLength}`}
-                transform={`rotate(${budgetRingStartAngle} 100 100)`}
-                className="progress-ring-glint transition-all duration-500"
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center">
-              <span className="text-xs font-semibold text-celtic-700">งบแพลนทั้งหมด</span>
-              <span className="font-onest mt-1 text-3xl font-medium text-celtic-900">
-                {totalPlannedOverall.toLocaleString('th-TH')}
-              </span>
-              <span className="mt-2 text-sm font-bold text-celtic-800">
-                {selectedCategoryPlanRatio}% ของงบรวม
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="glass-card rounded-3xl border border-white/80 shadow-xs overflow-hidden">
-        <div className="relative overflow-hidden bg-white/40">
-          <button
-            type="button"
-            onClick={() => { setIsAddActionRevealed(false); handleStartAddItem(); }}
-            className={`absolute right-3 top-1/2 z-0 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl bg-apple-200 text-celtic-900 transition-opacity hover:bg-apple-300 ${isAddActionRevealed ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
-            aria-label={`เพิ่มรายการในหมวด${activeCategory}`}
-            aria-hidden={!isAddActionRevealed}
-            tabIndex={isAddActionRevealed ? 0 : -1}
-          >
-            <Plus className="h-5 w-5" />
-          </button>
-          <div
-            className={`relative z-10 flex flex-row items-center justify-between gap-3 bg-white/40 p-4.5 transition-transform duration-200 ease-out touch-pan-y ${isAddActionRevealed ? '-translate-x-14' : 'translate-x-0'}`}
-            onTouchStart={(event) => {
-              const touch = event.touches[0];
-              categorySwipeStartRef.current = { x: touch.clientX, y: touch.clientY };
-            }}
-            onTouchEnd={(event) => {
-              const start = categorySwipeStartRef.current;
-              categorySwipeStartRef.current = null;
-              if (!start) return;
-              const touch = event.changedTouches[0];
-              const deltaX = touch.clientX - start.x;
-              const deltaY = touch.clientY - start.y;
-              if (Math.abs(deltaX) > 44 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
-                setIsAddActionRevealed(deltaX < 0);
-              }
-            }}
-            onTouchCancel={() => { categorySwipeStartRef.current = null; }}
-          >
-            <div className="flex min-w-0 items-center gap-3">
-              <div className={`p-3 rounded-2xl ${getCategoryInfo(activeCategory).bgLight} ${getCategoryInfo(activeCategory).textColor}`}>
-                {getCategoryInfo(activeCategory).icon}
+            {planKind === 'income' ? (
+              <div className="flex flex-col items-center justify-center rounded-2xl p-3 text-center">
+                <span className="text-base font-medium text-celtic-700">รายรับรวมทั้งหมด</span>
+                <span className="mt-1 text-5xl font-bold text-celtic-900">{totalPlannedOverall.toLocaleString('th-TH')}</span>
+                <span className="mt-4 text-sm font-normal text-celtic-800">รายรับทุกประเภท</span>
               </div>
-              <div className="min-w-0">
-                <h6 className="text-base font-bold text-celtic-900">{activeCategory}</h6>
-                <span className="text-xs text-celtic-700">{selectedBudget.items.length} รายการ · {monthLabel(selectedMonth)}</span>
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center">
+            ) : (
               <button
                 type="button"
-                onClick={() => setIsAddActionRevealed((revealed) => !revealed)}
-                className="rounded-lg px-2 py-1 text-right text-celtic-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
-                aria-label={isAddActionRevealed ? 'ซ่อนปุ่มเพิ่มรายการ' : 'แสดงปุ่มเพิ่มรายการ'}
-                aria-expanded={isAddActionRevealed}
-                title="แตะยอดงบหมวดนี้เพื่อแสดงปุ่มเพิ่มรายการ"
+                onClick={() => setShowCategoryBudget((current) => !current)}
+                className="flex cursor-pointer flex-col items-center justify-center rounded-2xl p-3 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
+                aria-label={showCategoryBudget ? `แสดงยอดแพลนทั้งหมด` : `แสดงยอดแพลนหมวด${activeCategory}`}
+                aria-pressed={showCategoryBudget}
               >
-                <span className="block text-xs font-bold text-celtic-700">ยอดงบหมวดนี้</span>
-                <span className="font-onest block text-xl font-medium text-celtic-900">{selectedBudget.totalPlanned.toLocaleString('th-TH')}</span>
+              <span className="text-base font-medium text-celtic-700 hover:text-apple-400">
+                {showCategoryBudget ? `ยอดทั้งหมด` : `จากทั้งหมด`}
+              </span>
+              <span className="mt-1 text-5xl font-bold text-celtic-900">
+                {(showCategoryBudget ? selectedBudget.totalPlanned : totalPlannedOverall).toLocaleString('th-TH')}
+              </span>
+              <span className="mt-4 text-sm font-normal text-celtic-800">
+                คิดเป็น <AnimatedNumber value={selectedCategoryPlanRatio} suffix="%" maximumFractionDigits={0} /> ของ{planKind === 'expense' ? 'งบรายจ่าย' : 'รายรับ'}ทั้งหมด
+              </span>
               </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-4 sm:p-5 border-t border-gray-100 space-y-3">
-          {selectedBudget.items.length === 0 && !addingCategory ? (
-            <div className="text-center py-8 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
-              <p className="text-xs text-gray-500 mb-3">ยังไม่มีรายการในหมวดนี้</p>
-              <button type="button" onClick={handleStartAddItem} className="px-3.5 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-xl hover:bg-emerald-100">
-                <Plus className="w-3.5 h-3.5 inline mr-1" /> เพิ่มรายการแรก
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {selectedBudget.items.map((item) => {
-                const icon = availableIcons.find((option) => option.file === item.icon);
-                const displayAmount = getBudgetItemAmount(item, selectedMonth);
-                const isEditing = editingItemId === item.id;
-                return (
-                  <div key={item.id} className="relative rounded-2xl bg-gray-50/70 border border-gray-200/70 overflow-hidden">
-                    {isEditing ? (
-                      <BudgetItemForm
-                        key={`edit-${item.id}-${selectedMonth}`}
-                        item={item}
-                        months={item.planType === 'six-month' && item.planMonth ? getSixMonths(item.planMonth) : sixMonths}
-                        selectedMonth={selectedMonth}
-                        planStartMonth={item.planType === 'six-month' ? item.planMonth || selectedMonth : selectedMonth}
-                        onCancel={() => setEditingItemId(null)}
-                        onSave={(draft) => handleSaveItem(activeCategory, draft, item)}
-                      />
-                    ) : (
-                      (() => {
-                        const actionsRevealed = revealedActionItemId === item.id;
-                        const editButton = (
-                          <button type="button" onClick={() => { setRevealedActionItemId(null); setEditingItemId(item.id); }} className="p-2 text-celtic-700 hover:text-celtic-900 hover:bg-apple-200 rounded-lg" aria-label={`แก้ไข ${item.name}`} title="แก้ไขรายการ">
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                        );
-                        const deleteButton = (
-                          <button type="button" onClick={() => { setRevealedActionItemId(null); void handleDeleteItem(activeCategory, item.id); }} className="p-2 text-celtic-700 hover:text-snow-drift-100 hover:bg-stiletto-800 rounded-lg" aria-label={`ลบ ${item.name}`} title="ลบรายการ">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        );
-                        return (
-                          <>
-                            <div
-                              className={`relative z-10 flex items-center justify-between gap-3 p-3 bg-gray-50/70 transition-transform duration-200 ease-out touch-pan-y ${actionsRevealed ? '-translate-x-24' : 'translate-x-0'} sm:translate-x-0`}
-                              onTouchStart={(event) => {
-                                const touch = event.touches[0];
-                                swipeStartRef.current = { itemId: item.id, x: touch.clientX, y: touch.clientY };
-                              }}
-                              onTouchEnd={(event) => {
-                                const start = swipeStartRef.current;
-                                swipeStartRef.current = null;
-                                if (!start || start.itemId !== item.id) return;
-                                const touch = event.changedTouches[0];
-                                const deltaX = touch.clientX - start.x;
-                                const deltaY = touch.clientY - start.y;
-                                if (Math.abs(deltaX) > 44 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
-                                  setRevealedActionItemId(deltaX < 0 ? item.id : null);
-                                }
-                              }}
-                              onTouchCancel={() => { swipeStartRef.current = null; }}
-                            >
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center shrink-0 overflow-hidden">
-                                  {icon ? <img src={icon.src} alt="" loading="lazy" className="w-full h-full p-1.5 object-contain" /> : <span className="text-emerald-700">{getCategoryInfo(activeCategory).icon}</span>}
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="text-sm font-semibold text-gray-900 truncate">{item.name}</p>
-                                  <p className="text-[11px] text-gray-500">
-                                    {item.planType === 'none'
-                                      ? 'ยังไม่กำหนดงบ'
-                                      : item.planType === 'six-month'
-                                        ? 'แผนล่วงหน้า 6 เดือน'
-                                        : item.planType === 'daily'
-                                          ? `แผนรายวัน | ${Number(item.amount).toLocaleString('th-TH')} บาทต่่อวันทำงาน`
-                                          : 'แผนรายเดือน | ใช้ทุกเดือน'}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                                <button
-                                  type="button"
-                                  className="font-onest text-xs sm:text-sm font-bold text-gray-900 hover:text-apple-400 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
-                                  onClick={() => setRevealedActionItemId(actionsRevealed ? null : item.id)}
-                                  aria-label={actionsRevealed ? `ซ่อนไอคอนแก้ไขและลบ ${item.name}` : `แสดงไอคอนแก้ไขและลบ ${item.name}`}
-                                  aria-expanded={actionsRevealed}
-                                  aria-controls={`budget-actions-${item.id}`}
-                                  title={actionsRevealed ? 'ซ่อนการดำเนินการ' : 'แตะตัวเลขเพื่อแสดงการดำเนินการ'}
-                                >
-                                  {item.planType === 'none' ? 'ไม่ตั้งงบ' : displayAmount.toLocaleString('th-TH')}
-                                </button>
-                                <div className="hidden sm:flex items-center gap-1">
-                                  {editButton}
-                                  {deleteButton}
-                                </div>
-                              </div>
-                            </div>
-                            <div id={`budget-actions-${item.id}`} className={`absolute inset-y-0 right-0 flex items-center gap-1 px-2 sm:hidden ${actionsRevealed ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} aria-hidden={!actionsRevealed}>
-                              {React.cloneElement(editButton, { tabIndex: actionsRevealed ? 0 : -1 })}
-                              {React.cloneElement(deleteButton, { tabIndex: actionsRevealed ? 0 : -1 })}
-                            </div>
-                          </>
-                        );
-                      })()
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {addingCategory === activeCategory && (
-            <BudgetItemForm
-              key={`add-${activeCategory}-${selectedMonth}`}
-              months={sixMonths}
-              selectedMonth={selectedMonth}
-              onCancel={() => setAddingCategory(null)}
-              onSave={(draft) => handleSaveItem(activeCategory, draft)}
-            />
-          )}
+            )}
+          </ParliamentChart>
         </div>
       </section>
+
+      {planKind === 'expense' && (
+        <div className="filter-tag-scroll relative z-0 flex flex-nowrap gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap pb-1 pt-24 -mt-24" role="group" aria-label="เลือกหมวดหมู่งบประมาณ">
+          {activeCategories.map((category) => (
+            <button
+              key={category}
+              type="button"
+              onClick={() => { setActiveCategory(category); setFormPage(null); setSelectedPlanItem(null); setSelectedPlanItemCategory(null); }}
+              aria-pressed={activeCategory === category}
+              className={`shrink-0 px-3.5 py-2 rounded-full border text-xs font-semibold transition-colors ${
+                activeCategory === category
+                  ? 'bg-apple-200 text-celtic-900'
+                  : 'bg-snow-drift-100 text-celtic-700'
+              }`}
+            >
+              {category}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {planKind === 'income' ? (
+        <div className="space-y-4" aria-label="รายการรายรับ">
+          {activeBudgets.map((budget) => (
+            <section key={budget.category} className="glass-card rounded-3xl p-4 sm:p-5" aria-label={`รายการรายรับหมวด${budget.category}`}>
+              <h2 className="mb-3 text-lg font-medium text-celtic-900">{budget.category}</h2>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {budget.items.map((item) => renderBudgetItem(budget.category, item))}
+                {renderAddCard(budget.category)}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <section className="glass-card rounded-3xl p-4 sm:p-5" aria-label={`รายการค่าใช้จ่ายหมวด${activeCategory}`}>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {selectedBudget.items.map((item) => renderBudgetItem(activeCategory, item))}
+            {renderAddCard(activeCategory)}
+          </div>
+        </section>
+      )}
+
+      {selectedPlanItem && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-celtic-900/55 p-4"
+          onClick={() => setSelectedPlanItem(null)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="budget-item-detail-title"
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl bg-snow-drift-50 p-5 text-celtic-900"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm text-celtic-700">รายละเอียดแพลน · {detailCategory}</p>
+                <h2 id="budget-item-detail-title" className="mt-1 text-2xl font-medium">{selectedPlanItem.name}</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPlanItem(null)}
+                className="rounded-full p-2 text-celtic-700 hover:bg-snow-drift-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
+                aria-label="ปิดรายละเอียด"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-5 flex flex-col items-center gap-3 rounded-2xl bg-snow-drift-100/50 p-4 text-center">
+              {availableIcons.find((option) => option.file === selectedPlanItem.icon)
+                ? <img src={availableIcons.find((option) => option.file === selectedPlanItem.icon)?.src} alt="" className="h-16 w-16 object-contain" />
+                : <span className="text-4xl" aria-hidden="true">{getCategoryInfo(detailCategory).emoji}</span>}
+              <span className="rounded-full bg-snow-drift-50 px-3 py-1 text-xs text-celtic-700">{getPlanTypeLabel(selectedPlanItem.planType)}</span>
+              <span className="font-onest text-3xl font-medium text-celtic-900">
+                {selectedPlanItem.planType === 'none' ? '—' : getBudgetItemAmount(selectedPlanItem, selectedMonth).toLocaleString('th-TH')}
+              </span>
+              <span className="text-sm text-celtic-700">
+                {selectedPlanItem.planType === 'none' ? 'ยังไม่ได้กำหนดยอด' : `บาทในเดือน ${monthLabel(selectedMonth, 'short')}`}
+              </span>
+            </div>
+
+            <div className="mt-4 space-y-3 text-sm">
+              {selectedPlanItem.planType === 'daily' && (
+                <>
+                  <div className="flex justify-between gap-3"><span className="text-celtic-700">ยอดต่อวันที่เลือก</span><span className="font-onest">{Number(selectedPlanItem.amount).toLocaleString('th-TH')} บาท</span></div>
+                  <div>
+                    <p className="text-celtic-700">วันที่คิดงบ</p>
+                    <p className="mt-1 font-medium">{WEEKDAYS.filter((day) => (selectedPlanItem.planDays ?? DEFAULT_PLAN_DAYS).includes(day.value)).map((day) => day.name.replace('วัน', '')).join(' · ')}</p>
+                  </div>
+                </>
+              )}
+              {selectedPlanItem.planType === 'monthly' && (
+                <div className="flex justify-between gap-3"><span className="text-celtic-700">งบต่อเดือน</span><span className="font-onest">{Number(selectedPlanItem.amount).toLocaleString('th-TH')} บาท</span></div>
+              )}
+              {selectedPlanItem.planType === 'six-month' && (
+                <div>
+                  <p className="text-celtic-700">ยอดแพลนรายเดือน</p>
+                  <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
+                    {Object.entries(selectedPlanItem.planAmounts || {}).map(([month, amount]) => (
+                      <div key={month} className="flex justify-between gap-2">
+                        <span>{monthLabel(month, 'short')}</span>
+                        <span className="font-onest">{Number(amount).toLocaleString('th-TH')}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {selectedPlanItem.planType === 'none' && <p className="text-center text-celtic-700">รายการนี้ยังไม่มีงบประมาณที่กำหนดไว้</p>}
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const category = detailCategory;
+                  const item = selectedPlanItem;
+                  setSelectedPlanItem(null);
+                  setFormPage({ mode: 'edit', category, item });
+                }}
+                className="flex items-center justify-center gap-2 rounded-xl bg-apple-300 px-4 py-3 text-sm font-medium text-celtic-900 hover:bg-apple-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-400"
+              >
+                <Edit3 className="h-4 w-4" /> แก้ไข
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const itemId = selectedPlanItem.id;
+                  setSelectedPlanItem(null);
+                  void handleDeleteItem(detailCategory, itemId);
+                }}
+                className="flex items-center justify-center gap-2 rounded-xl bg-snow-drift-200 px-4 py-3 text-sm font-medium text-celtic-900 hover:bg-stiletto-800 hover:text-snow-drift-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stiletto-800"
+              >
+                <Trash2 className="h-4 w-4" /> ลบแพลน
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {isSyncing && <p className="text-center text-xs text-gray-500">กำลังซิงค์ข้อมูล...</p>}
     </div>

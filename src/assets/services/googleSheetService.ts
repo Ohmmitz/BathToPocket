@@ -1,4 +1,4 @@
-import { Transaction, CategoryBudget, SavingGoal, EXPENSE_CATEGORIES } from '../utils/finance.ts';
+import { Transaction, CategoryBudget, SavingGoal, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../utils/finance.ts';
 
 export const APPS_SCRIPT_STORAGE_KEY = 'app_expenses_google_script_url';
 export const LAST_SYNCED_KEY = 'app_expenses_last_synced';
@@ -9,7 +9,7 @@ export const DEFAULT_SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1
 export const DEFAULT_APPS_SCRIPT_CODE = `/**
  * Google Apps Script สำหรับระบบบันทึกรายรับ-รายจ่ายและแผนงบประมาณ
  * ข้อมูล BudgetItem จะถูกเก็บทั้งแบบคอลัมน์สำหรับอ่านง่าย และ JSON เต็มในคอลัมน์สุดท้าย
- * เพื่อเก็บ icon, planType, planMonth และ planAmounts ได้ครบ
+ * เพื่อเก็บ icon, planType, planMonth, planAmounts และ planDays ได้ครบ
  *
  * วิธีติดตั้ง: วางโค้ดนี้ใน Apps Script แล้ว Deploy เป็น Web app
  * Execute as: Me | Who has access: Anyone
@@ -394,6 +394,7 @@ export async function fetchFromGoogleSheet(): Promise<{
               planType: i.planType,
               planMonth: i.planMonth,
               planAmounts: i.planAmounts && typeof i.planAmounts === 'object' ? i.planAmounts : undefined,
+              planDays: Array.isArray(i.planDays) ? i.planDays : undefined,
             })),
           };
         });
@@ -412,9 +413,10 @@ export async function fetchFromGoogleSheet(): Promise<{
             planType: item.planType,
             planMonth: item.planMonth,
             planAmounts: item.planAmounts && typeof item.planAmounts === 'object' ? item.planAmounts : undefined,
+            planDays: Array.isArray(item.planDays) ? item.planDays : undefined,
           });
         }
-        parsedBudgets = EXPENSE_CATEGORIES.map((cat) => {
+        parsedBudgets = [...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES].map((cat) => {
           const items = groupMap[cat] || [];
           const totalPlanned = items.reduce((sum: number, it: any) => sum + it.amount, 0);
           return {

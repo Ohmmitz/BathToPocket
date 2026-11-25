@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { 
+  ArrowLeft,
   ChevronRight,
   X, 
   AlertTriangle, 
@@ -111,7 +112,7 @@ const SlideToConfirm: React.FC<SlideToConfirmProps> = ({ disabled, isSubmitting,
   return (
     <div
       ref={trackRef}
-      className="relative h-16 w-full overflow-hidden rounded-full bg-snow-drift-200 p-4 select-none"
+      className="relative h-16 w-full overflow-hidden rounded-full bg-snow-drift-100 p-4 select-none"
       aria-label="เลื่อนเพื่อยืนยันการบันทึก"
     >
       <div
@@ -155,6 +156,7 @@ interface TransactionSummaryModalProps {
   itemIconUrl?: string;
   budgetWarningMessage?: string | null;
   isSubmitting?: boolean;
+  isFullPage?: boolean;
 }
 
 export const TransactionSummaryModal: React.FC<TransactionSummaryModalProps> = ({
@@ -165,6 +167,7 @@ export const TransactionSummaryModal: React.FC<TransactionSummaryModalProps> = (
   itemIconUrl,
   budgetWarningMessage,
   isSubmitting = false,
+  isFullPage = false,
 }) => {
   if (!isOpen || !transaction) return null;
 
@@ -172,11 +175,11 @@ export const TransactionSummaryModal: React.FC<TransactionSummaryModalProps> = (
   const catInfo = getCategoryInfo(transaction.category);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-celtic-900/80 animate-in fade-in duration-200">
-      <div 
-        className="w-full max-w-md glass-island rounded-4xl overflow-hidden transform transition-all"
-        role="dialog"
-        aria-modal="true"
+    <div className={isFullPage ? 'w-full animate-in fade-in duration-200' : 'fixed inset-0 z-[100] flex items-center justify-center bg-celtic-900/80 p-4 animate-in fade-in duration-200'}>
+      <div
+        className={isFullPage ? 'mx-auto w-full max-w-3xl overflow-hidden glass-card rounded-3xl border border-white/80' : 'w-full max-w-md overflow-hidden glass-island rounded-4xl'}
+        role={isFullPage ? 'region' : 'dialog'}
+        aria-modal={isFullPage ? undefined : true}
         aria-labelledby="summary-modal-title"
       >
         {/* Header */}
@@ -197,33 +200,32 @@ export const TransactionSummaryModal: React.FC<TransactionSummaryModalProps> = (
           <button
             onClick={onClose}
             disabled={isSubmitting}
-            className="p-4 text-celtic-700 hover:text-celtic-900 hover:bg-snow-drift-200 rounded-2xl transition-colors"
-            aria-label="ปิดหน้าต่างสรุป"
+            className="rounded-2xl p-3 text-celtic-700 transition-colors hover:bg-snow-drift-200 hover:text-celtic-900"
+            aria-label={isFullPage ? 'กลับไปแก้ไขข้อมูล' : 'ปิดหน้าต่างสรุป'}
           >
-            <X className="w-4 h-4" />
+            {isFullPage ? <ArrowLeft className="h-5 w-5" /> : <X className="w-4 h-4" />}
           </button>
         </div>
         {/* Content Details */}
         <div className="p-4 space-y-2">
           {/* Main Amount Card */}
-          <div className={`p-4 rounded-xl text-center border ${
+          <div className={`flex items-center justify-between gap-4 rounded-xl border p-4 ${
             isExpense ? 'bg-rose-50/50 border-rose-100' : 'bg-emerald-50/50 border-emerald-100'
           }`}>
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wider block mb-1">
-              {isExpense ? 'จำนวนเงินที่จ่าย' : 'จำนวนเงินที่ได้รับ'}
-            </span>
-            <div className="mt-2 mb-4 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-800 shadow-2xs">
-              {itemIconUrl ? (
-                <img src={itemIconUrl} alt="" className="w-8 h-8 object-contain" />
-              ) : (
-                <span className="w-2 h-2 rounded-full bg-current" />
-              )}
-              {transaction.title}
+            <div className="flex min-w-0 items-center gap-3 text-left">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/80">
+                {itemIconUrl ? <img src={itemIconUrl} alt="" className="h-9 w-9 object-contain" /> : <span className="h-2 w-2 rounded-full bg-celtic-700" />}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-xs font-medium text-celtic-700">{isExpense ? 'ชื่อค่าใช้จ่าย' : 'ชื่อรายการรายรับ'}</span>
+                <span className="block truncate text-base font-medium text-celtic-900">{transaction.title}</span>
+              </span>
             </div>
-            <div className={`font-onest text-5xl font-extrabold ${
-              isExpense ? 'text-celtic-900' : 'text-celtic-900'
-            }`}>
-              {isExpense ? '' : ''}{Number(transaction.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+            <div className="shrink-0 text-right">
+              <span className="block text-xs font-medium text-celtic-700">{isExpense ? 'จำนวนเงินที่จ่าย' : 'จำนวนเงินที่ได้รับ'}</span>
+              <div className="font-onest text-3xl font-extrabold text-celtic-900 sm:text-5xl">
+                {Number(transaction.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+              </div>
             </div>
           </div>
 

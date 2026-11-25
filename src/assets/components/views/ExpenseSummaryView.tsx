@@ -1,80 +1,49 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { 
-  Wallet, 
-  ShoppingBasket, 
-  Target,
+  History,
+  Search,
   Sparkles,
 } from 'lucide-react';
 import { 
   Transaction, 
-  calculateFinancialSummary, 
   calculateCategorySpent, 
   getAccountingPeriodMonth,
   EXPENSE_CATEGORIES 
 } from '../../utils/finance.ts';
+import { ParliamentChart } from '../ParliamentChart.tsx';
+import { AnimatedNumber } from '../AnimatedNumber.tsx';
+import { getCategoryInfo } from '../../utils/categoryHelpers.tsx';
 
-const AnimatedNumber: React.FC<{
-  value: number;
-  className?: string;
-  prefix?: string;
-  suffix?: string;
-  minimumFractionDigits?: number;
-  maximumFractionDigits?: number;
-}> = ({ value, className = '', prefix = '', suffix = '', minimumFractionDigits = 0, maximumFractionDigits = 2 }) => {
-  const [displayValue, setDisplayValue] = useState(0);
-  const currentValueRef = useRef(0);
+const transactionIconAssets = import.meta.glob('../../icon-optimized/*.png', {
+  eager: true,
+  import: 'default',
+  query: '?url',
+}) as Record<string, string>;
 
-  useEffect(() => {
-    const startValue = currentValueRef.current;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || startValue === value) {
-      currentValueRef.current = value;
-      setDisplayValue(value);
-      return;
-    }
-
-    const duration = 720;
-    let animationFrame = 0;
-    let startTime: number | null = null;
-    const animate = (timestamp: number) => {
-      if (startTime === null) startTime = timestamp;
-      const progress = Math.min((timestamp - startTime) / duration, 1);
-      const easedProgress = 1 - Math.pow(1 - progress, 3);
-      const nextValue = startValue + (value - startValue) * easedProgress;
-      currentValueRef.current = nextValue;
-      setDisplayValue(nextValue);
-      if (progress < 1) animationFrame = window.requestAnimationFrame(animate);
-      else {
-        currentValueRef.current = value;
-        setDisplayValue(value);
-      }
-    };
-
-    animationFrame = window.requestAnimationFrame(animate);
-    return () => window.cancelAnimationFrame(animationFrame);
-  }, [value]);
-
-  const formattedValue = new Intl.NumberFormat('th-TH', {
-    minimumFractionDigits,
-    maximumFractionDigits,
-  }).format(displayValue);
-
-  return (
-    <span className={className} aria-label={`${prefix}${new Intl.NumberFormat('th-TH', { minimumFractionDigits, maximumFractionDigits }).format(value)}${suffix}`}>
-      {prefix}{formattedValue}{suffix}
-    </span>
-  );
-};
+function formatHistoryDate(dateStr: string): string {
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+  if (dateStr === todayStr) return `วันนี้ (${dateStr})`;
+  if (dateStr === yesterdayStr) return `เมื่อวานนี้ (${dateStr})`;
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return `${day}/${month}/${year + 543}`;
+}
 
 interface ExpenseSummaryViewProps {
   transactions: Transaction[];
   onNavigateToBudget: () => void;
   onNavigateToAdd: () => void;
+  onNavigateToHistory: () => void;
 }
 
 export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
   transactions,
   onNavigateToBudget,
   onNavigateToAdd,
+  onNavigateToHistory,
 }) => {
   const today = new Date();
   const currentMonthStr = getAccountingPeriodMonth(today);
@@ -103,9 +72,16 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showRemainingBudget, setShowRemainingBudget] = useState(false);
-
   const currentMonthTransactions = transactions.filter(t => getAccountingPeriodMonth(t.date) === selectedMonth);
-  const { totalIncome, totalExpense, balance } = calculateFinancialSummary(currentMonthTransactions);
+  const totalIncome = currentMonthTransactions
+    .filter((transaction) => transaction.type === 'income')
+    .reduce((sum, transaction) => sum + (Number(transaction.amount) || 0), 0);
+  const totalExpense = currentMonthTransactions
+    .filter((transaction) => transaction.type === 'expense')
+    .reduce((sum, transaction) => sum + (Number(transaction.amount) || 0), 0);
+  const expenseHistory = currentMonthTransactions
+    .filter((transaction) => transaction.type === 'expense' && (!selectedCategory || transaction.category === selectedCategory))
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
 
   // Category filters use actual expenses recorded in the selected accounting period.
   const categoryStats = EXPENSE_CATEGORIES.map((cat) => {
@@ -125,10 +101,6 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
     : 0;
   const displayedRatio = showRemainingBudget ? remainingRatio : expenseRatio;
   const progressRatio = Math.min(100, Math.max(0, displayedRatio));
-  const budgetRingCircumference = 2 * Math.PI * 76;
-  const budgetRingSweep = 0.8;
-  const budgetRingStartAngle = 126;
-  const budgetRingProgressLength = budgetRingCircumference * budgetRingSweep * progressRatio / 100;
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-2 pb-8">
@@ -186,40 +158,13 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
             </button>
           ))}
         </div>
-
         <div className="flex justify-center py-1">
-          <div className="relative w-64 h-64 max-w-full">
-            <svg
-              viewBox="0 0 200 200"
-              className="w-full h-full"
-              role="img"
-              aria-label={showRemainingBudget ? `เหลือจากรายรับ ${remainingRatio}%` : `รายจ่ายคิดเป็น ${expenseRatio}% ของรายรับ`}
-            >
-              <circle
-                cx="100"
-                cy="100"
-                r="76"
-                fill="none"
-                stroke="rgba(15, 23, 42, 0.08)"
-                strokeWidth="24"
-                strokeLinecap="round"
-                strokeDasharray={`${budgetRingCircumference * budgetRingSweep} ${budgetRingCircumference * (1 - budgetRingSweep)}`}
-                transform={`rotate(${budgetRingStartAngle} 100 100)`}
-              />
-              <circle
-                cx="100"
-                cy="100"
-                r="76"
-                fill="none"
-                stroke={remainingAmount < 0 ? '#90242D' : '#31D80A'}
-                strokeWidth="18"
-                strokeLinecap="round"
-                strokeDasharray={`${budgetRingProgressLength} ${budgetRingCircumference - budgetRingProgressLength}`}
-                transform={`rotate(${budgetRingStartAngle} 100 100)`}
-                className="progress-ring-glint transition-all duration-500"
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
+          <ParliamentChart
+            className="max-w-96"
+            percentage={progressRatio}
+            activeColor={remainingAmount < 0 ? '#90242D' : '#52F229'}
+            ariaLabel={showRemainingBudget ? `เหลือจากรายรับ ${remainingRatio}%` : `รายจ่ายคิดเป็น ${expenseRatio}% ของรายรับ`}
+          >
               <button
                 type="button"
                 onClick={() => setShowRemainingBudget((current) => !current)}
@@ -227,11 +172,11 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
                 aria-label="สลับระหว่างงบที่ใช้ไปกับงบที่เหลือ"
                 aria-pressed={showRemainingBudget}
               >
-                <span className="text-xs font-semibold text-celtic-700 hover:text-emerald-800 underline underline-offset-2">
-                  {showRemainingBudget ? 'เหลืองบอีก' : 'งบที่ใช้ไป'}
+                <span className="text-base font-medium text-celtic-700 hover:text-emerald-800">
+                  {showRemainingBudget ? 'ยอดเงินคงเหลือ' : 'ยอดเงินที่ใช้ไป'}
                 </span>
                 <AnimatedNumber
-                  className="font-onest mt-1 text-4xl font-extrabold text-celtic-900"
+                  className="mt-1 text-5xl font-bold text-celtic-900"
                   value={showRemainingBudget ? Math.abs(remainingAmount) : displayedExpense}
                   prefix={showRemainingBudget && remainingAmount < 0 ? '−' : ''}
                 />
@@ -240,63 +185,81 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
                     รายจ่ายเกินรายรับ <AnimatedNumber value={Math.abs(remainingAmount)} /> บาท
                   </span>
                 )}
-                <span className="text-sm font-bold text-celtic-800 mt-2">
+                <span className="text-sm font-normal text-celtic-800 mt-4">
                   คิดเป็น <AnimatedNumber value={displayedRatio} suffix="%" maximumFractionDigits={0} />
                 </span>
               </button>
-            </div>
-          </div>
+          </ParliamentChart>
         </div>
       </section>
-      {/* Income and expense cards */}
-      <div className="grid grid-cols-2 gap-3.5">
-        <div className="glass-card p-2 rounded-3xl border border-white/80 shadow-xs">
-          <div className="flex items-center justify-start mb-2">
-            <span className="text-xs font-semibold text-celtic-700">รายรับเดือนนี้</span>
-            <div className="w-8 h-8 text-celtic-900 flex items-center justify-center">
-              <Wallet className="w-4 h-4" />
-            </div>
+      {/* Recent expense history */}
+      <section className="space-y-3" aria-labelledby="summary-history-heading">
+        <div className="flex items-center justify-between gap-3 px-1">
+          <div className="min-w-0">
+            <h2 id="summary-history-heading" className="text-base font-semibold text-celtic-900">
+              {selectedCategory ? `ประวัติ${selectedCategory}` : 'ประวัติค่าใช้จ่าย'}
+            </h2>
+            <p className="mt-0.5 text-xs text-celtic-700">{expenseHistory.length} รายการในเดือนที่เลือก</p>
           </div>
-          <AnimatedNumber className="font-onest text-xl sm:text-2xl font-bold text-celtic-900 tracking-tight" value={totalIncome} suffix="-." />
-          <span className="text-[11px] text-celtic-900 font-medium block mt-1">
-            <AnimatedNumber value={currentMonthTransactions.filter((t) => t.type === 'income').length} suffix=" รายการที่บันทึก" maximumFractionDigits={0} />
-          </span>
+          {expenseHistory.length > 0 && (
+            <button
+              type="button"
+              onClick={onNavigateToHistory}
+              className="flex min-h-10 shrink-0 z-10 items-center justify-center gap-1.5 rounded-full bg-apple-200 px-3 text-xs font-semibold text-celtic-900 transition-colors hover:bg-apple-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
+              aria-label="ไปหน้าประวัติรายการบันทึก"
+              title="ดูประวัติทั้งหมด"
+            >
+              <History className="h-4 w-4" />
+              <span>ดูทั้งหมด</span>
+            </button>
+          )}
         </div>
-        <div className="glass-card p-2 rounded-3xl border border-white/80 shadow-xs">
-          <div className="flex items-center justify-start mb-2">
-            <span className="text-xs font-semibold text-celtic-700">รายจ่ายเดือนนี้</span>
-            <div className="w-8 h-8 text-celtic-900 flex items-center justify-center">
-              <ShoppingBasket className="w-4 h-4" />
-            </div>
+
+        {expenseHistory.length === 0 ? (
+          <div className="rounded-2xl bg-transparent p-8 text-center">
+            <Search className="mx-auto mb-2 h-6 w-6 text-celtic-700" />
+            <p className="text-sm font-medium text-celtic-900">ยังไม่มีประวัติค่าใช้จ่ายในหมวดนี้</p>
           </div>
-          <AnimatedNumber className="font-onest text-xl sm:text-2xl font-bold text-celtic-800 tracking-tight" value={totalExpense} suffix="-." />
-          <span className="text-[11px] text-celtic-900 block mt-1">
-            <AnimatedNumber value={currentMonthTransactions.filter((t) => t.type === 'expense').length} suffix=" รายการที่บันทึก" maximumFractionDigits={0} />
-          </span>
-        </div>
-      </div>
-      {/* Floating Action Button helper on desktop */}
-      <div className="p-5 glass-card rounded-3xl border border-emerald-400/30 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-apple-300 text-celtic-900 flex items-center justify-center shrink-0">
-            <Sparkles className="w-4 h-4" />
+        ) : (
+          <div className="space-y-2">
+            {expenseHistory.slice(0, 3).map((transaction) => {
+              const categoryInfo = getCategoryInfo(transaction.category);
+              const iconUrl = transaction.icon
+                ? transactionIconAssets[`../../icon-optimized/${transaction.icon}`]
+                : undefined;
+              const isLatest = expenseHistory[0]?.id === transaction.id;
+
+              return (
+                <article key={transaction.id} className="relative overflow-hidden rounded-2xl bg-transparent">
+                  <div className="relative z-10 flex items-center justify-between gap-2 bg-snow-drift-50 p-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-snow-drift-50 text-celtic-900">
+                        {iconUrl ? <img src={iconUrl} alt="" loading="lazy" className="h-full w-full p-1.5 object-contain" /> : categoryInfo.icon}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <h6 className="truncate text-sm font-medium text-celtic-900">{transaction.title}</h6>
+                          {isLatest && <span className="shrink-0 rounded-full bg-apple-200 px-2 py-1 text-xs font-medium text-celtic-900">ล่าสุด</span>}
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-celtic-700">
+                          <span>{transaction.category}</span>
+                          <span>·</span>
+                          <span>{formatHistoryDate(transaction.date)}</span>
+                          {transaction.time && <><span>·</span><span>{transaction.time} น.</span></>}
+                          {transaction.note && <span className="truncate italic">· “{transaction.note}”</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="font-onest shrink-0 rounded-lg px-1 py-2 text-right text-sm font-medium text-celtic-900 sm:text-base">
+                      −{Number(transaction.amount).toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </article>
+              );
+            })}
           </div>
-          <div>
-            <h6 className="text-sm font-bold text-celtic-900">
-              ต้องการบันทึกค่าใช้จ่ายวันนี้เพิ่มไหม?
-            </h6>
-            <p className="text-xs text-celtic-700">
-              จดบันทึกทันทีหลังจ่ายเงินเพื่อควบคุมงบประมาณได้อย่างแม่นยำ
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={onNavigateToAdd}
-          className="px-4 py-2 bg-apple-300 hover:bg-apple-400 text-celtic-900 text-xs font-semibold rounded-xl transition-colors shadow-xs"
-        >
-          + บันทึกรายการใหม่
-        </button>
-      </div>
+        )}
+      </section>
     </div>
   );
 };

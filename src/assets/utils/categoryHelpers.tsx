@@ -106,7 +106,18 @@ export function getCategoryInfo(categoryName: string): CategoryInfo {
         borderColor: 'border-gray-200',
         progressColor: 'bg-gray-500',
       };
-    // Income categories
+    // Unified income category
+    case 'รายได้':
+      return {
+        name: categoryName,
+        icon: <CircleDollarSign className="w-4 h-4" />,
+        emoji: '💰',
+        bgLight: 'bg-emerald-50',
+        textColor: 'text-emerald-700',
+        borderColor: 'border-emerald-200',
+        progressColor: 'bg-emerald-500',
+      };
+    // Legacy income categories, kept for older transaction history
     case 'เงินเดือน / ค่าจ้าง':
       return {
         name: categoryName,

@@ -12,6 +12,7 @@ interface SlidingPillToggleProps {
   onChange: (value: string) => void;
   ariaLabel: string;
   className?: string;
+  compact?: boolean;
   pillClassName?: string;
   activeTextClassName?: string;
   inactiveTextClassName?: string;
@@ -23,7 +24,8 @@ export const SlidingPillToggle: React.FC<SlidingPillToggleProps> = ({
   onChange,
   ariaLabel,
   className = '',
-  pillClassName = 'bg-apple-200',
+  compact = false,
+  pillClassName = 'bg-apple-300',
   activeTextClassName = 'text-celtic-900',
   inactiveTextClassName = 'text-celtic-700',
 }) => {
@@ -57,7 +59,7 @@ export const SlidingPillToggle: React.FC<SlidingPillToggleProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative flex items-center rounded-full bg-snow-drift-100 p-1.5 ${className}`}
+      className={`relative flex items-center rounded-full bg-snow-drift-100 ${compact ? 'p-1' : 'p-1.5'} ${className}`}
       role="group"
       aria-label={ariaLabel}
     >
@@ -75,7 +77,7 @@ export const SlidingPillToggle: React.FC<SlidingPillToggleProps> = ({
             type="button"
             onClick={() => onChange(option.value)}
             aria-pressed={isActive}
-            className={`relative z-10 flex flex-1 items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm font-semibold transition-colors duration-200 ${isActive ? activeTextClassName : inactiveTextClassName}`}
+            className={`relative z-10 flex flex-1 items-center justify-center gap-2 rounded-full ${compact ? 'px-2.5 py-1.5 text-xs' : 'px-3 py-2.5 text-sm'} font-semibold transition-colors duration-200 ${isActive ? activeTextClassName : inactiveTextClassName}`}
           >
             {option.icon}
             {option.label}

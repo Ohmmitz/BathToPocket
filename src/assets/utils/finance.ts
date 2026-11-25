@@ -13,7 +13,7 @@ export const EXPENSE_CATEGORIES = [
 
 export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
 
-export const INCOME_CATEGORIES = [
+export const LEGACY_INCOME_CATEGORIES = [
   'เงินเดือน / ค่าจ้าง',
   'โบนัส',
   'ธุรกิจ / งานเสริม',
@@ -21,7 +21,10 @@ export const INCOME_CATEGORIES = [
   'อื่นๆ',
 ] as const;
 
+export const INCOME_CATEGORIES = ['รายได้'] as const;
+
 export type IncomeCategory = typeof INCOME_CATEGORIES[number];
+export type BudgetCategory = ExpenseCategory | IncomeCategory;
 
 export interface Transaction {
   id: string;
@@ -44,10 +47,30 @@ export interface BudgetItem {
   planType?: 'daily' | 'monthly' | 'single' | 'six-month' | 'none';
   planMonth?: string;
   planAmounts?: Record<string, number>;
+  planDays?: number[];
 }
 
+export const DEFAULT_INCOME_SOURCE_ITEMS: Array<{ category: IncomeCategory; item: BudgetItem }> = [
+  {
+    category: 'รายได้',
+    item: { id: 'income-source-salary', name: 'เงินเดือน / ค่าจ้าง', amount: 0, icon: 'icon_income.png', planType: 'none' },
+  },
+  {
+    category: 'รายได้',
+    item: { id: 'income-source-bonus', name: 'โบนัส', amount: 0, icon: 'icon_give.png', planType: 'none' },
+  },
+  {
+    category: 'รายได้',
+    item: { id: 'income-source-business', name: 'ธุรกิจ / งานเสริม', amount: 0, icon: 'icon_Finance.png', planType: 'none' },
+  },
+  {
+    category: 'รายได้',
+    item: { id: 'income-source-investment', name: 'ลงทุน / ปันผล', amount: 0, icon: 'icon_save.png', planType: 'none' },
+  },
+];
+
 export interface CategoryBudget {
-  category: ExpenseCategory;
+  category: BudgetCategory;
   items: BudgetItem[];
   totalPlanned: number;
 }
@@ -85,14 +108,19 @@ export function getAccountingPeriodMonth(value: string | Date = new Date()): str
 }
 
 export function getWeekdaysInMonth(monthValue: string): number {
+  return getSelectedDaysInMonth(monthValue, [1, 2, 3, 4, 5]);
+}
+
+export function getSelectedDaysInMonth(monthValue: string, selectedDays: number[]): number {
   const [year, month] = monthValue.split('-').map(Number);
   const daysInMonth = new Date(year, month, 0).getDate();
-  let weekdays = 0;
+  const selectedDaySet = new Set(selectedDays);
+  let count = 0;
   for (let day = 1; day <= daysInMonth; day += 1) {
     const weekday = new Date(year, month - 1, day).getDay();
-    if (weekday !== 0 && weekday !== 6) weekdays += 1;
+    if (selectedDaySet.has(weekday)) count += 1;
   }
-  return weekdays;
+  return count;
 }
 
 /**
@@ -101,7 +129,7 @@ export function getWeekdaysInMonth(monthValue: string): number {
 export function getBudgetItemAmount(item: BudgetItem, month?: string): number {
   if (item.planType === 'none') return 0;
   if (item.planType === 'daily' && month) {
-    return (Number(item.amount) || 0) * getWeekdaysInMonth(month);
+    return (Number(item.amount) || 0) * getSelectedDaysInMonth(month, item.planDays ?? [1, 2, 3, 4, 5]);
   }
   if (item.planType === 'six-month' && month) {
     return Number(item.planAmounts?.[month]) || 0;
