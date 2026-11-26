@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { 
   PlusCircle, 
   MinusCircle, 
@@ -6,7 +6,6 @@ import {
   Clock, 
   FileText, 
   Check, 
-  RotateCcw,
   Info,
   MoreHorizontal,
   ArrowLeft,
@@ -29,13 +28,13 @@ import { getCategoryInfo } from '../../utils/categoryHelpers.tsx';
 import { SlidingPillToggle } from '../SlidingPillToggle.tsx';
 import { ParliamentChart } from '../ParliamentChart.tsx';
 import { TransactionSummaryModal } from '../ConfirmationModal.tsx';
+import { useCenterSnapFilter } from '../useCenterSnapFilter.ts';
+import { PageHeader } from '../PageHeader.tsx';
 
 interface AddTransactionViewProps {
   onAddTransaction: (transaction: Omit<Transaction, 'id' | 'createdAt'>) => Promise<void>;
   budgets: CategoryBudget[];
   currentTransactions: Transaction[];
-  onOpenUndoModal: () => void;
-  hasTransactionsToUndo: boolean;
 }
 
 const budgetIconImports = import.meta.glob('../../icon-optimized/*.png', {
@@ -47,19 +46,51 @@ const budgetIconUrls = Object.fromEntries(Object.entries(budgetIconImports).map(
   path.split('/').pop() || '',
   url,
 ])) as Record<string, string>;
+const EXPENSE_RAINBOW_COLORS: Record<string, string> = {
+  'ค่าอาหาร': '#D84B0A',
+  'ค่าเดินทาง': '#0A97D8',
+  'ค่าใช้จ่ายประจำ': '#B20AD8',
+  'ค่าความบันเทิง': '#0A30D8',
+  'ค่าสุขภาพ': '#0AD8B2',
+  'ค่าของใช้ส่วนตัว': '#FFD400',
+  'ค่าหนี้สิน': '#FF7A0C',
+  'ค่าใช้จ่ายอื่นๆ': '#EC4899',
+};
+const EXPENSE_RAINBOW_SEGMENTS = EXPENSE_CATEGORIES.map((expenseCategory) => ({
+  value: 1,
+  color: EXPENSE_RAINBOW_COLORS[expenseCategory] || '#808080',
+}));
+
+interface BudgetItemDragCandidate {
+  item: BudgetItem;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  isDragging: boolean;
+}
+
+interface BudgetItemDragPreview {
+  item: BudgetItem;
+  x: number;
+  y: number;
+}
 
 export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
   onAddTransaction,
   budgets,
   currentTransactions,
-  onOpenUndoModal,
-  hasTransactionsToUndo,
 }) => {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [type, setType] = useState<TransactionType>('expense');
   const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[0]);
+  const categoryFilterRef = useCenterSnapFilter(category);
   const [selectedBudgetItem, setSelectedBudgetItem] = useState<BudgetItem | null>(null);
   const [isChartDropTarget, setIsChartDropTarget] = useState(false);
+  const [isChartInteractionNear, setIsChartInteractionNear] = useState(false);
+  const [dragPreview, setDragPreview] = useState<BudgetItemDragPreview | null>(null);
+  const chartDropRef = useRef<HTMLDivElement>(null);
+  const dragCandidateRef = useRef<BudgetItemDragCandidate | null>(null);
+  const suppressDraggedClickRef = useRef(false);
   const [title, setTitle] = useState('');
   const [amountStr, setAmountStr] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -79,6 +110,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
   const handleTypeChange = (newType: TransactionType) => {
     setCurrentStep(1);
     setIsChartDropTarget(false);
+    setIsChartInteractionNear(false);
     setType(newType);
     setSelectedBudgetItem(null);
     setTitle('');
@@ -89,12 +121,95 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
     }
   };
 
-  const handleSelectBudgetItem = (item: BudgetItem | null) => {
+  const handleSelectBudgetItem = useCallback((item: BudgetItem | null) => {
     setSelectedBudgetItem(item);
     setTitle(item?.name || '');
     setValidationError(null);
     setIsChartDropTarget(false);
+    setIsChartInteractionNear(false);
+    setDragPreview(null);
     setCurrentStep(2);
+  }, []);
+
+  useEffect(() => {
+    let suppressClickTimeout = 0;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const candidate = dragCandidateRef.current;
+      if (!candidate || candidate.pointerId !== event.pointerId) return;
+
+      const deltaX = event.clientX - candidate.startX;
+      const deltaY = event.clientY - candidate.startY;
+      if (!candidate.isDragging && Math.hypot(deltaX, deltaY) > 8) {
+        candidate.isDragging = true;
+      }
+      if (!candidate.isDragging) return;
+
+      event.preventDefault();
+      const chartRect = chartDropRef.current?.getBoundingClientRect();
+      const overChart = Boolean(chartRect
+        && event.clientX >= chartRect.left
+        && event.clientX <= chartRect.right
+        && event.clientY >= chartRect.top
+        && event.clientY <= chartRect.bottom);
+      const nearChart = Boolean(chartRect
+        && event.clientX >= chartRect.left - 48
+        && event.clientX <= chartRect.right + 48
+        && event.clientY >= chartRect.top - 48
+        && event.clientY <= chartRect.bottom + 48);
+      setIsChartDropTarget(overChart);
+      setIsChartInteractionNear(nearChart);
+      setDragPreview({ item: candidate.item, x: event.clientX, y: event.clientY });
+    };
+
+    const finishPointer = (event: PointerEvent, cancelled = false) => {
+      const candidate = dragCandidateRef.current;
+      if (!candidate || candidate.pointerId !== event.pointerId) return;
+      dragCandidateRef.current = null;
+
+      const chartRect = chartDropRef.current?.getBoundingClientRect();
+      const droppedOnChart = !cancelled && candidate.isDragging && Boolean(chartRect
+        && event.clientX >= chartRect.left
+        && event.clientX <= chartRect.right
+        && event.clientY >= chartRect.top
+        && event.clientY <= chartRect.bottom);
+
+      setDragPreview(null);
+      setIsChartDropTarget(false);
+      setIsChartInteractionNear(false);
+      if (candidate.isDragging) {
+        suppressDraggedClickRef.current = true;
+        window.clearTimeout(suppressClickTimeout);
+        suppressClickTimeout = window.setTimeout(() => {
+          suppressDraggedClickRef.current = false;
+        }, 0);
+      }
+      if (droppedOnChart) handleSelectBudgetItem(candidate.item);
+    };
+
+    const handlePointerUp = (event: PointerEvent) => finishPointer(event);
+    const handlePointerCancel = (event: PointerEvent) => finishPointer(event, true);
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerCancel);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerCancel);
+      window.clearTimeout(suppressClickTimeout);
+    };
+  }, [handleSelectBudgetItem]);
+
+  const handleBudgetItemPointerDown = (event: React.PointerEvent<HTMLSpanElement>, item: BudgetItem) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    dragCandidateRef.current = {
+      item,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      isDragging: false,
+    };
   };
 
   // Form submission: Triggers the mandatory summary confirmation modal
@@ -205,27 +320,62 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-2 pb-8">
-      {/* Page Title & Quick Undo button */}
-      <div className="flex items-center justify-between glass-card p-5 rounded-3xl border border-white/80 shadow-xs">
-        <div>
-          <h1 className="text-xl font-bold text-celtic-900 tracking-tight">
-            บันทึกค่าใช้จ่าย
-          </h1>
-        </div>
-        {hasTransactionsToUndo && (
-          <button
-            type="button"
-            onClick={onOpenUndoModal}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold bg-snow-drift-100 text-celtic-900 hover:bg-amber-500/20 transition-all shadow-2xs backdrop-blur-md active:scale-95"
-            title="ย้อนรายการล่าสุดที่เพิ่งบันทึก"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-celtic-900" />
-            <span className="hidden sm:inline">ย้อนรายการล่าสุด</span>
-            <span className="sm:hidden">ย้อน</span>
-          </button>
+      <PageHeader
+        title="บันทึกค่าใช้จ่าย"
+        inlineTrailing
+        trailing={(
+          <SlidingPillToggle
+            value={type}
+            onChange={(nextType) => handleTypeChange(nextType as TransactionType)}
+            ariaLabel="เลือกประเภทรายการ"
+            compact
+            className="w-40"
+            pillClassName="bg-celtic-900"
+            activeTextClassName="!text-snow-drift-50"
+            inactiveTextClassName="text-celtic-700 hover:text-celtic-900"
+            options={[
+              { value: 'expense', label: 'รายจ่าย' },
+              { value: 'income', label: 'รายรับ' },
+            ]}
+          />
         )}
-      </div>
-      <section className="glass-card space-y-3 rounded-3xl p-4 sm:p-5" aria-label="ความคืบหน้าการบันทึก">
+      />
+      {currentStep === 1 && <div
+        ref={chartDropRef}
+        className="parliament-chart-stage"
+        role="group"
+        aria-label="ลากไอคอนรายการมาวางเพื่อเลือก"
+      >
+        <ParliamentChart
+          percentage={remainingAmount < 0 ? 100 : remainingRatio}
+          activeColor={remainingAmount < 0 ? '#90242D' : '#52F229'}
+          interactionActive={isChartInteractionNear}
+          segments={isChartInteractionNear ? EXPENSE_RAINBOW_SEGMENTS : undefined}
+          ariaLabel={`ยอดเงินคงเหลือ ${remainingAmount.toLocaleString('th-TH')} บาท`}
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 320 320"
+            className={`pointer-events-none absolute inset-0 z-10 aspect-square w-full overflow-visible ${isChartDropTarget ? 'text-celtic-900' : 'text-celtic-700'}`}
+          >
+            <defs>
+              <path id="transaction-chart-instruction-arc" d="M 17 185 A 145 145 0 1 1 303 185" />
+            </defs>
+            <text className="fill-current text-[11px] font-medium opacity-50 tracking-[0.04em]">
+              <textPath href="#transaction-chart-instruction-arc" startOffset="50%" textAnchor="middle">
+                {isChartDropTarget ? 'ปล่อยเพื่อเลือกรายการ' : 'ลากไอคอนไปวาง หรือแตะเพื่อเลือก'}
+              </textPath>
+            </text>
+          </svg>
+          <div className="pointer-events-none flex flex-col items-center justify-center text-center">
+            <span className="text-5xl font-bold text-celtic-900 tracking-tight">
+              {remainingAmount < 0 ? '−' : ''}{Math.abs(remainingAmount).toLocaleString('th-TH')}
+            </span>
+            <span className="text-base font-medium text-celtic-700">งบทั้งหมด (บาท)</span>
+          </div>
+        </ParliamentChart>
+      </div>}
+      {currentStep !== 1 && <section className="glass-card space-y-3 rounded-3xl p-4 sm:p-5" aria-label="ความคืบหน้าการบันทึก">
         <div className="h-2 overflow-hidden rounded-full bg-snow-drift-200" role="progressbar" aria-label={`ขั้นตอนที่ ${currentStep} จาก 3`} aria-valuemin={1} aria-valuemax={3} aria-valuenow={currentStep}>
           <div className="h-full rounded-full bg-apple-400 transition-[width] duration-500 ease-out" style={{ width: `${(currentStep / 3) * 100}%` }} />
         </div>
@@ -239,66 +389,13 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
             </div>
           ))}
         </div>
-      </section>
+      </section>}
       {/* Main Input Form */}
       {currentStep !== 3 && <form onSubmit={handleReviewAndSubmit} className="glass-card rounded-3xl p-2 border border-white/80 shadow-xs space-y-4">
         {currentStep === 1 && <div className="space-y-4">
-        {/* Toggle Type: Expense / Income */}
-        <SlidingPillToggle
-          value={type}
-          onChange={(nextType) => handleTypeChange(nextType as TransactionType)}
-          ariaLabel="เลือกประเภทรายการ"
-          compact
-          className="mx-auto w-full max-w-[160px]"
-          pillClassName="bg-celtic-900"
-          activeTextClassName="text-snow-drift-50"
-          inactiveTextClassName="text-celtic-700 hover:text-celtic-900"
-          options={[
-            { value: 'expense', label: 'รายจ่าย', },
-            { value: 'income', label: 'รายรับ', },
-          ]}
-        />
-        <div className="bg-transparent p-0">
-          <div
-            className="relative mx-auto -mt-4 flex min-h-[250px] w-full max-w-96 flex-col items-center justify-center rounded-2xl"
-            onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setIsChartDropTarget(true); }}
-            onDragLeave={(event) => {
-              const nextTarget = event.relatedTarget;
-              if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) setIsChartDropTarget(false);
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              setIsChartDropTarget(false);
-              const itemId = event.dataTransfer.getData('text/plain');
-              const item = plannedItems.find((plannedItem) => plannedItem.id === itemId);
-              if (item) handleSelectBudgetItem(item);
-            }}
-            role="group"
-            aria-label="ลากรายการค่าใช้จ่ายมาวางเพื่อเลือก"
-          >
-            <ParliamentChart
-              className="max-w-96"
-              percentage={remainingAmount < 0 ? 100 : remainingRatio}
-              activeColor={remainingAmount < 0 ? '#90242D' : '#52F229'}
-              interactionActive={isChartDropTarget}
-              ariaLabel={`ยอดเงินคงเหลือ ${remainingAmount.toLocaleString('th-TH')} บาท`}
-            >
-              <div className="pointer-events-none flex flex-col items-center justify-center rounded-2xl p-3 text-center">
-                <span className="text-base font-medium text-celtic-700">งบทั้งหมด</span>
-                <span className="mt-1 text-5xl font-bold text-celtic-900">
-                  {remainingAmount < 0 ? '−' : ''}{Math.abs(remainingAmount).toLocaleString('th-TH')}
-                </span>
-                <span className="mt-4 text-sm font-normal text-celtic-800">บาท</span>
-              </div>
-            </ParliamentChart>
-            <span className={`pointer-events-none absolute bottom-1 left-0 right-0 text-center text-[11px] ${isChartDropTarget ? 'font-semibold text-celtic-900' : 'text-celtic-700'}`}>
-              {isChartDropTarget ? 'ปล่อยเพื่อเลือกรายการ' : 'ลากรายการมาวาง หรือแตะเพื่อเลือก'}
-            </span>
-          </div>
-        </div>
         {/* Expense category filter tags */}
         {type === 'expense' && <div>
-          <div className="filter-tag-scroll relative z-0 flex flex-nowrap gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap pb-1" role="group" aria-label={`เลือกหมวดหมู่${type === 'expense' ? 'ค่าใช้จ่าย' : 'รายรับ'}`}>
+          <div ref={categoryFilterRef} className="filter-tag-scroll relative z-0 flex flex-nowrap gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap pb-1" role="group" aria-label={`เลือกหมวดหมู่${type === 'expense' ? 'ค่าใช้จ่าย' : 'รายรับ'}`}>
             {activeCategories.map((cat) => {
               const isSelected = category === cat;
               return (
@@ -334,19 +431,22 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
                   <button
                     key={item.id}
                     type="button"
-                    draggable
-                    onDragStart={(event) => {
-                      event.dataTransfer.setData('text/plain', item.id);
-                      event.dataTransfer.effectAllowed = 'move';
+                    onClick={(event) => {
+                      if (suppressDraggedClickRef.current) {
+                        event.preventDefault();
+                        return;
+                      }
+                      handleSelectBudgetItem(item);
                     }}
-                    onDragEnd={() => setIsChartDropTarget(false)}
-                    onClick={() => handleSelectBudgetItem(item)}
                     aria-label={`เลือก${type === 'expense' ? 'ค่าใช้จ่าย' : 'รายรับ'} ${item.name}`}
                     className="min-h-32 rounded-4xl border p-2 flex flex-col items-center justify-center gap-1 text-center transition-all hover:bg-snow-drift-100/50"
                   >
-                    <span className="w-24 h-24 flex items-center justify-center overflow-hidden">
+                    <span
+                      className="budget-item-drag-handle flex h-24 w-24 items-center justify-center overflow-hidden"
+                      onPointerDown={(event) => handleBudgetItemPointerDown(event, item)}
+                    >
                       {iconUrl ? (
-                        <img src={iconUrl} alt="" className="w-full h-full p-1 object-contain" />
+                        <img src={iconUrl} alt="" draggable={false} className="h-full w-full select-none bg-transparent p-1 object-contain" />
                       ) : (
                         <span className="text-xl" aria-hidden="true">{getCategoryInfo(category).emoji}</span>
                       )}
@@ -484,6 +584,19 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
           </button>
         </div>}
       </form>}
+      {dragPreview && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed z-[150] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+          style={{ left: dragPreview.x, top: dragPreview.y }}
+        >
+          <span className="flex h-16 w-16 items-center justify-center bg-transparent drop-shadow-[0_4px_12px_rgba(24,49,38,0.25)]">
+            {dragPreview.item.icon && budgetIconUrls[dragPreview.item.icon]
+              ? <img src={budgetIconUrls[dragPreview.item.icon]} alt="" draggable={false} className="h-full w-full select-none bg-transparent object-contain" />
+              : <span className="text-4xl" aria-hidden="true">{getCategoryInfo(category).emoji}</span>}
+          </span>
+        </div>
+      )}
       <TransactionSummaryModal
         isOpen={currentStep === 3 && Boolean(pendingTx)}
         onClose={() => setCurrentStep(2)}

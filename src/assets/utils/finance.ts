@@ -1,13 +1,28 @@
 export type TransactionType = 'income' | 'expense';
 
+const LEGACY_CATEGORY_NAMES: Record<string, string> = {
+  'อาหารและเครื่องดื่ม': 'ค่าอาหาร',
+  'การเดินทาง': 'ค่าเดินทาง',
+  'บิลและค่าใช้จ่ายประจำ': 'ค่าใช้จ่ายประจำ',
+  'ความบันเทิงและพักผ่อน': 'ค่าความบันเทิง',
+  'สุขภาพและยา': 'ค่าสุขภาพ',
+  'ของใช้และช็อปปิ้ง': 'ค่าของใช้ส่วนตัว',
+  'หนี้สิน': 'ค่าหนี้สิน',
+  'เงินออม': 'ค่าหนี้สิน',
+};
+
+export function normalizeCategoryName(category: string): string {
+  return LEGACY_CATEGORY_NAMES[category] || category;
+}
+
 export const EXPENSE_CATEGORIES = [
-  'อาหารและเครื่องดื่ม',
-  'การเดินทาง',
-  'บิลและค่าใช้จ่ายประจำ',
-  'ความบันเทิงและพักผ่อน',
-  'สุขภาพและยา',
-  'ของใช้และช็อปปิ้ง',
-  'หนี้สิน',
+  'ค่าอาหาร',
+  'ค่าเดินทาง',
+  'ค่าใช้จ่ายประจำ',
+  'ค่าความบันเทิง',
+  'ค่าสุขภาพ',
+  'ค่าของใช้ส่วนตัว',
+  'ค่าหนี้สิน',
   'ค่าใช้จ่ายอื่นๆ',
 ] as const;
 
@@ -152,7 +167,7 @@ export function calculateCategorySpent(
   return transactions
     .filter((tx) => {
       if (tx.type !== 'expense') return false;
-      const transactionCategory = tx.category === 'เงินออม' ? 'หนี้สิน' : tx.category;
+      const transactionCategory = normalizeCategoryName(tx.category);
       if (transactionCategory !== category) return false;
       if (monthPrefix && getAccountingPeriodMonth(tx.date) !== monthPrefix) return false;
       return true;

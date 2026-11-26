@@ -14,6 +14,7 @@ import {
   getLatestTransaction 
 } from '../../utils/finance.ts';
 import { getCategoryInfo } from '../../utils/categoryHelpers.tsx';
+import { PageHeader } from '../PageHeader.tsx';
 
 interface HistoryViewProps {
   transactions: Transaction[];
@@ -104,14 +105,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-2 pb-8">
-      {/* Top Header & Undo Bar */}
-      <div className="glass-card p-4 sm:p-5 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-celtic-900">
-            ประวัติรายการบันทึก
-          </h1>
-        </div>
-      </div>
+      <PageHeader title="ประวัติรายการบันทึก" />
 
       {/* Filter and Instant Search Box */}
       <div className="glass-card p-4 sm:p-5 rounded-3xl space-y-4">

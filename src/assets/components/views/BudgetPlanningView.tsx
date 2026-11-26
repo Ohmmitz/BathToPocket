@@ -28,6 +28,8 @@ import { getCategoryInfo } from '../../utils/categoryHelpers.tsx';
 import { SlidingPillToggle } from '../SlidingPillToggle.tsx';
 import { ParliamentChart } from '../ParliamentChart.tsx';
 import { AnimatedNumber } from '../AnimatedNumber.tsx';
+import { useCenterSnapFilter } from '../useCenterSnapFilter.ts';
+import { MonthSelector, PageHeader } from '../PageHeader.tsx';
 
 interface BudgetPlanningViewProps {
   budgets: CategoryBudget[];
@@ -37,6 +39,17 @@ interface BudgetPlanningViewProps {
 
 type BudgetItemDraft = Omit<BudgetItem, 'id'>;
 type PlanChoice = 'daily' | 'monthly' | 'six-month';
+type BudgetChartMode = 'total' | 'fromTotal' | 'proportion';
+const CATEGORY_PLAN_COLORS: Record<string, string> = {
+  'ค่าอาหาร': '#D84B0A',
+  'ค่าเดินทาง': '#0A97D8',
+  'ค่าใช้จ่ายประจำ': '#B20AD8',
+  'ค่าความบันเทิง': '#0A30D8',
+  'ค่าสุขภาพ': '#0AD8B2',
+  'ค่าของใช้ส่วนตัว': '#FFD400',
+  'ค่าหนี้สิน': '#FF7A0C',
+  'ค่าใช้จ่ายอื่นๆ': '#808080',
+};
 type BudgetItemFormPage =
   | { mode: 'add'; category: BudgetCategory }
   | { mode: 'edit'; category: BudgetCategory; item: BudgetItem };
@@ -380,8 +393,9 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
   });
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [planKind, setPlanKind] = useState<TransactionType>('expense');
-  const [activeCategory, setActiveCategory] = useState<BudgetCategory>(EXPENSE_CATEGORIES[0]);
-  const [showCategoryBudget, setShowCategoryBudget] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<BudgetCategory | null>(null);
+  const categoryFilterRef = useCenterSnapFilter(activeCategory ?? 'all');
+  const [chartMode, setChartMode] = useState<BudgetChartMode>('fromTotal');
   const [formPage, setFormPage] = useState<BudgetItemFormPage | null>(null);
   const [selectedPlanItem, setSelectedPlanItem] = useState<BudgetItem | null>(null);
   const [selectedPlanItemCategory, setSelectedPlanItemCategory] = useState<BudgetCategory | null>(null);
@@ -391,7 +405,7 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
   const activeCategories: readonly BudgetCategory[] = planKind === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
   const normalizedBudgets: CategoryBudget[] = allPlanCategories.map((category) => {
     const existing = budgets.find((budget) =>
-      budget.category === category || (category === 'หนี้สิน' && String(budget.category) === 'เงินออม')
+      budget.category === category || (category === 'ค่าหนี้สิน' && String(budget.category) === 'เงินออม')
     );
     const legacyIncomeBudgets = category === 'รายได้'
       ? budgets.filter((budget) => LEGACY_INCOME_CATEGORIES.includes(budget.category as typeof LEGACY_INCOME_CATEGORIES[number]))
@@ -420,8 +434,18 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
   const selectedBudget = activeBudgets.find((budget) => budget.category === activeCategory) || activeBudgets[0];
   const totalPlannedOverall = activeBudgets.reduce((sum, budget) => sum + budget.totalPlanned, 0);
   const selectedCategoryPlanRatio = totalPlannedOverall > 0
-    ? (planKind === 'income' ? 100 : Math.round((selectedBudget.totalPlanned / totalPlannedOverall) * 100))
+    ? (planKind === 'income' || activeCategory === null
+      ? 100
+      : Math.round((selectedBudget.totalPlanned / totalPlannedOverall) * 100))
     : 0;
+  const chartAmount = chartMode === 'total'
+    ? totalPlannedOverall
+    : activeCategory === null ? totalPlannedOverall : selectedBudget.totalPlanned;
+  const chartPercentage = chartMode === 'total' ? (totalPlannedOverall > 0 ? 100 : 0) : selectedCategoryPlanRatio;
+  const categorySegments = activeBudgets.map((budget) => ({
+    value: budget.totalPlanned,
+    color: CATEGORY_PLAN_COLORS[budget.category] || '#808080',
+  }));
 
   const handleStartAddItem = (category: BudgetCategory) => {
     setFormPage({ mode: 'add', category });
@@ -477,7 +501,7 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
     </button>
   );
 
-  const detailCategory = selectedPlanItemCategory || activeCategory;
+  const detailCategory = selectedPlanItemCategory || activeCategory || selectedBudget.category;
 
   const handleSaveItem = async (category: BudgetCategory, draft: BudgetItemDraft, existingItem?: BudgetItem) => {
     const savedItem: BudgetItem = {
@@ -515,22 +539,26 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
 
     return (
       <div className="mx-auto w-full max-w-3xl space-y-5 pb-8">
-        <button
-          type="button"
-          onClick={() => setFormPage(null)}
-          className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-celtic-800 transition-colors hover:bg-snow-drift-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          กลับไปแพลนงบประมาณ
-        </button>
-
-        <header className="space-y-1">
-          <p className="text-sm text-celtic-700">{formPage.category} · {monthLabel(selectedMonth)}</p>
-          <h1 className="text-2xl font-medium text-celtic-900">
-            {isEditing ? `แก้ไขรายการ${itemKindLabel}` : `เพิ่มรายการ${itemKindLabel}`}
-          </h1>
-          <p className="text-sm text-celtic-700">ระบุชื่อ ไอคอน และรูปแบบงบประมาณของรายการ</p>
-        </header>
+        <PageHeader
+          title={isEditing ? `แก้ไขรายการ${itemKindLabel}` : `เพิ่มรายการ${itemKindLabel}`}
+          leading={(
+            <button
+              type="button"
+              onClick={() => setFormPage(null)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-snow-drift-100 text-celtic-800 transition-colors hover:bg-snow-drift-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
+              aria-label="กลับไปแพลนงบประมาณ"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
+          subtitle={(
+            <>
+              <span>{formPage.category} · {monthLabel(selectedMonth)}</span>
+              <span className="mx-1.5" aria-hidden="true">·</span>
+              <span>ระบุชื่อ ไอคอน และรูปแบบงบประมาณของรายการ</span>
+            </>
+          )}
+        />
 
         <section className="rounded-3xl bg-snow-drift-50 p-4 sm:p-6" aria-label={`${isEditing ? 'แก้ไข' : 'เพิ่ม'}รายการ${itemKindLabel}`}>
           <BudgetItemForm
@@ -549,90 +577,106 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-2 pb-8">
-      <div className="glass-card p-5.5 rounded-3xl border border-white/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-celtic-900">แพลนงบประมาณ</h1>
-          </div>
-        </div>
-        <div className="flex items-center justify-between gap-4 sm:justify-end">
-          <label htmlFor="budget-month-select" className="text-base text-celtic-700 font-medium">ของเดือน</label>
-          <select
-            id="budget-month-select"
-            value={selectedMonth}
-            onChange={(event) => setSelectedMonth(event.target.value)}
-            className="px-0 py-0 text-xs rounded-xl text-celtic-700 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-2xs backdrop-blur-md"
-          >
-            {monthOptions.map((month) => <option key={month.value} value={month.value}>{month.label}</option>)}
-          </select>
-        </div>
-      </div>
-      <SlidingPillToggle
-        value={planKind}
-        onChange={(nextKind) => {
-          const kind = nextKind as TransactionType;
-          setPlanKind(kind);
-          setActiveCategory(kind === 'expense' ? EXPENSE_CATEGORIES[0] : INCOME_CATEGORIES[0]);
-          setFormPage(null);
-          setSelectedPlanItem(null);
-          setSelectedPlanItemCategory(null);
-          setShowCategoryBudget(false);
-        }}
-        ariaLabel="เลือกประเภทแพลน"
-        compact
-        className="mx-auto w-full max-w-[160px]"
-        pillClassName="bg-celtic-900"
-        activeTextClassName="text-snow-drift-50"
-        inactiveTextClassName="text-celtic-700 hover:text-celtic-900"
-        options={[
-          { value: 'expense', label: 'รายจ่าย' },
-          { value: 'income', label: 'รายรับ' },
-        ]}
+      <PageHeader
+        title="แพลนงบประมาณ"
+        inlineTrailing
+        trailing={(
+          <SlidingPillToggle
+            value={planKind}
+            onChange={(nextKind) => {
+              const kind = nextKind as TransactionType;
+              setPlanKind(kind);
+              setActiveCategory(kind === 'expense' ? null : INCOME_CATEGORIES[0]);
+              setChartMode('fromTotal');
+              setFormPage(null);
+              setSelectedPlanItem(null);
+              setSelectedPlanItemCategory(null);
+            }}
+            ariaLabel="เลือกประเภทงบประมาณ"
+            compact
+            className="w-40"
+            pillClassName="bg-celtic-900"
+            activeTextClassName="!text-snow-drift-50"
+            inactiveTextClassName="text-celtic-700 hover:text-celtic-900"
+            options={[
+              { value: 'expense', label: 'รายจ่าย' },
+              { value: 'income', label: 'รายรับ' },
+            ]}
+          />
+        )}
+        secondary={<MonthSelector id="budget-month-select" value={selectedMonth} options={monthOptions} onChange={setSelectedMonth} />}
       />
-
-      <section className="glass-card rounded-3xl p-4 sm:p-5" aria-labelledby="budget-share-heading">
-        <div className="flex justify-center">
+      <section className="glass-card rounded-3xl p-0" aria-labelledby="budget-share-heading">
+        <div className="parliament-chart-stage">
           <ParliamentChart
-            className="max-w-96"
-            percentage={selectedCategoryPlanRatio}
-            ariaLabel={`${planKind === 'income' ? 'รายรับรวม' : activeCategory}: ${selectedCategoryPlanRatio}% ของ${planKind === 'expense' ? 'งบรายจ่าย' : 'รายรับ'}ทั้งหมด ${totalPlannedOverall.toLocaleString('th-TH')} บาท`}
+            percentage={planKind === 'income' ? 100 : chartPercentage}
+            activeColor={planKind === 'expense' && activeCategory ? CATEGORY_PLAN_COLORS[activeCategory] || '#808080' : '#52F229'}
+            segments={planKind === 'expense' && activeCategory === null ? categorySegments : undefined}
+            ariaLabel={`${planKind === 'income' ? 'รายรับรวม' : activeCategory || 'รายจ่ายรวม'}: ${selectedCategoryPlanRatio}% ของ${planKind === 'expense' ? 'งบรายจ่าย' : 'รายรับ'}ทั้งหมด ${totalPlannedOverall.toLocaleString('th-TH')} บาท`}
           >
             {planKind === 'income' ? (
-              <div className="flex flex-col items-center justify-center rounded-2xl p-3 text-center">
-                <span className="text-base font-medium text-celtic-700">รายรับรวมทั้งหมด</span>
-                <span className="mt-1 text-5xl font-bold text-celtic-900">{totalPlannedOverall.toLocaleString('th-TH')}</span>
-                <span className="mt-4 text-sm font-normal text-celtic-800">รายรับทุกประเภท</span>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowCategoryBudget((current) => !current)}
-                className="flex cursor-pointer flex-col items-center justify-center rounded-2xl p-3 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
-                aria-label={showCategoryBudget ? `แสดงยอดแพลนทั้งหมด` : `แสดงยอดแพลนหมวด${activeCategory}`}
-                aria-pressed={showCategoryBudget}
-              >
-              <span className="text-base font-medium text-celtic-700 hover:text-apple-400">
-                {showCategoryBudget ? `ยอดทั้งหมด` : `จากทั้งหมด`}
-              </span>
-              <span className="mt-1 text-5xl font-bold text-celtic-900">
-                {(showCategoryBudget ? selectedBudget.totalPlanned : totalPlannedOverall).toLocaleString('th-TH')}
-              </span>
-              <span className="mt-4 text-sm font-normal text-celtic-800">
-                คิดเป็น <AnimatedNumber value={selectedCategoryPlanRatio} suffix="%" maximumFractionDigits={0} /> ของ{planKind === 'expense' ? 'งบรายจ่าย' : 'รายรับ'}ทั้งหมด
-              </span>
-              </button>
+                <div className="pointer-events-none flex flex-col items-center justify-center rounded-2xl p-0">
+                  <span className="text-5xl font-bold text-celtic-900 tracking-tight">
+                    {totalPlannedOverall.toLocaleString('th-TH')}
+                  </span>
+                  <span className="text-base font-medium text-celtic-700">รายรับ (บาท)</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setChartMode((current) => current === 'fromTotal'
+                    ? 'total'
+                    : current === 'total' ? 'proportion' : 'fromTotal')}
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-2xl p-0 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
+                  aria-label={chartMode === 'fromTotal'
+                    ? 'แสดงยอดรวมจากทั้งหมด'
+                    : chartMode === 'total' ? 'แสดงสัดส่วนงบประมาณ' : 'กลับไปแสดงยอดที่แพลนไว้'}
+                >
+                  <span className="text-5xl font-bold text-celtic-900 tracking-tight">
+                    {chartMode === 'proportion'
+                      ? <AnimatedNumber value={selectedCategoryPlanRatio} suffix="%" maximumFractionDigits={0} />
+                      : chartAmount.toLocaleString('th-TH')}
+                  </span>
+                  <span className="text-base font-medium text-celtic-700 hover:text-apple-400">
+                    {chartMode === 'fromTotal' ? 'แพลนไป (บาท)' : chartMode === 'total' ? 'จากทั้งหมด (บาท)' : 'เป็นสัดส่วน'}
+                  </span>
+                </button>
             )}
           </ParliamentChart>
         </div>
       </section>
 
       {planKind === 'expense' && (
-        <div className="filter-tag-scroll relative z-0 flex flex-nowrap gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap pb-1 pt-24 -mt-24" role="group" aria-label="เลือกหมวดหมู่งบประมาณ">
+        <div ref={categoryFilterRef} className="filter-tag-scroll relative z-0 flex flex-nowrap gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap pb-1 pt-4 -mt-24" role="group" aria-label="เลือกหมวดหมู่งบประมาณ">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveCategory(null);
+              setChartMode('fromTotal');
+              setFormPage(null);
+              setSelectedPlanItem(null);
+              setSelectedPlanItemCategory(null);
+            }}
+            aria-pressed={activeCategory === null}
+            className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition-colors ${
+              activeCategory === null
+                ? 'bg-apple-200 text-celtic-900'
+                : 'bg-snow-drift-100 text-celtic-700'
+            }`}
+          >
+            ทั้งหมด
+          </button>
           {activeCategories.map((category) => (
             <button
               key={category}
               type="button"
-              onClick={() => { setActiveCategory(category); setFormPage(null); setSelectedPlanItem(null); setSelectedPlanItemCategory(null); }}
+              onClick={() => {
+                setActiveCategory(category);
+                setChartMode('fromTotal');
+                setFormPage(null);
+                setSelectedPlanItem(null);
+                setSelectedPlanItemCategory(null);
+              }}
               aria-pressed={activeCategory === category}
               className={`shrink-0 px-3.5 py-2 rounded-full border text-xs font-semibold transition-colors ${
                 activeCategory === category
@@ -659,17 +703,27 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
           ))}
         </div>
       ) : (
-        <section className="glass-card rounded-3xl p-4 sm:p-5" aria-label={`รายการค่าใช้จ่ายหมวด${activeCategory}`}>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {selectedBudget.items.map((item) => renderBudgetItem(activeCategory, item))}
-            {renderAddCard(activeCategory)}
+        activeCategory === null ? (
+          <div className="glass-card rounded-3xl p-4 sm:p-5" aria-label="รายการค่าใช้จ่ายทั้งหมด">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {activeBudgets.flatMap((budget) =>
+                budget.items.map((item) => renderBudgetItem(budget.category, item))
+              )}
+            </div>
           </div>
-        </section>
+        ) : (
+          <section className="glass-card rounded-3xl p-4 sm:p-5" aria-label={`รายการค่าใช้จ่ายหมวด${activeCategory}`}>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {selectedBudget.items.map((item) => renderBudgetItem(activeCategory, item))}
+              {renderAddCard(activeCategory)}
+            </div>
+          </section>
+        )
       )}
 
       {selectedPlanItem && (
         <div
-          className="fixed inset-0 z-[110] flex items-center justify-center bg-celtic-900/55 p-4"
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-celtic-900/55 page-gutter-x py-4"
           onClick={() => setSelectedPlanItem(null)}
         >
           <section

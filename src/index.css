@@ -99,6 +99,8 @@
 }
 
 :root {
+  --page-shell-max: 64rem;
+  --page-gutter: max(1rem, env(safe-area-inset-left), env(safe-area-inset-right));
   font-family: "Google Sans", sans-serif;
   color: var(--color-celtic-900);
   font-synthesis: none;
@@ -121,6 +123,44 @@ body {
   color: var(--color-celtic-900);
   font-family: "Google Sans", sans-serif;
   font-weight: 400;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --page-gutter: max(1.5rem, env(safe-area-inset-left), env(safe-area-inset-right));
+  }
+}
+
+.page-gutter-x {
+  padding-inline: var(--page-gutter);
+}
+
+.mobile-nav-gutter {
+  left: var(--page-gutter);
+  right: var(--page-gutter);
+  width: auto;
+}
+
+.parliament-chart-stage {
+  position: relative;
+  z-index: 0;
+  width: 100%;
+  max-width: 30rem;
+  aspect-ratio: 1 / 1;
+  margin-inline: auto;
+  margin-bottom: -8rem;
+}
+
+.page-edge-toast {
+  left: var(--page-gutter);
+  right: var(--page-gutter);
+}
+
+@media (min-width: 640px) {
+  .page-edge-toast {
+    left: auto;
+    right: max(var(--page-gutter), calc((100vw - var(--page-shell-max)) / 2 + var(--page-gutter)));
+  }
 }
 
 button,
@@ -174,6 +214,37 @@ button {
   scrollbar-width: none;
   -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+}
+
+.filter-tag-scroll.has-overflow {
+  cursor: grab;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+}
+
+.filter-tag-scroll.is-dragging {
+  cursor: grabbing;
+  scroll-behavior: auto;
+  scroll-snap-type: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.filter-tag-scroll::before,
+.filter-tag-scroll::after {
+  content: "";
+  flex: 0 0 0px;
+  pointer-events: none;
+}
+
+.filter-tag-scroll::before {
+  flex-basis: var(--filter-start-space, 0px);
+}
+
+.filter-tag-scroll::after {
+  flex-basis: var(--filter-end-space, 0px);
 }
 
 .filter-tag-scroll::-webkit-scrollbar {
@@ -194,11 +265,30 @@ button {
 }
 
 .filter-tag-scroll button {
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
   transition: transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1), background-color 180ms ease, color 180ms ease;
 }
 
 .filter-tag-scroll button[aria-pressed="true"] {
   animation: choice-chip-select 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.filter-tag-scroll button[aria-pressed="false"] {
+  background-color: transparent !important;
+  color: rgb(24 49 38 / 50%) !important;
+}
+
+.budget-item-drag-handle {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+}
+
+.budget-item-drag-handle:active {
+  cursor: grabbing;
 }
 
 @keyframes choice-chip-select {
@@ -224,7 +314,9 @@ button {
 }
 
 .parliament-dot-hover {
-  animation-name: parliament-dot-apple-wave;
+  animation-name: parliament-dot-rainbow-wave;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 @keyframes progress-ring-glow {
@@ -243,10 +335,9 @@ button {
   50% { filter: brightness(1.32) saturate(1.2); }
 }
 
-@keyframes parliament-dot-apple-wave {
-  0%, 100% { fill: var(--color-apple-200); filter: saturate(1); }
-  33% { fill: var(--color-apple-300); filter: saturate(1.1); }
-  66% { fill: var(--color-apple-400); filter: saturate(1.2); }
+@keyframes parliament-dot-rainbow-wave {
+  0%, 100% { fill: var(--dot-color); filter: brightness(0.82) saturate(0.95); transform: scale(0.97); }
+  50% { fill: var(--dot-next-color); filter: brightness(1.7) saturate(1.45); transform: scale(1.05); }
 }
 
 @keyframes slide-confirm-shimmer {
@@ -268,6 +359,7 @@ button {
   .progress-ring-sparkle,
   .parliament-dot-active { animation: none; }
   .filter-tag-scroll button { transition: none; }
+  .filter-tag-scroll { scroll-behavior: auto; }
   .sliding-pill-indicator { transition: none !important; }
 }
 
@@ -344,6 +436,14 @@ caption { font-size: 0.75rem !important; font-weight: 300 !important; }
   box-shadow: none !important;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+}
+
+.navbar-glass {
+  background: rgba(246, 248, 245, 0.82) !important;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow: 0 8px 26px rgba(24, 49, 38, 0.09);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
 }
 
 .glass-card{

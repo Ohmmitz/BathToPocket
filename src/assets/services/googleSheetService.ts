@@ -1,4 +1,4 @@
-import { Transaction, CategoryBudget, SavingGoal, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../utils/finance.ts';
+import { Transaction, CategoryBudget, SavingGoal, EXPENSE_CATEGORIES, INCOME_CATEGORIES, normalizeCategoryName } from '../utils/finance.ts';
 
 export const APPS_SCRIPT_STORAGE_KEY = 'app_expenses_google_script_url';
 export const LAST_SYNCED_KEY = 'app_expenses_last_synced';
@@ -21,6 +21,20 @@ var SAVINGS_SHEET = 'Savings';
 var TRANSACTION_HEADERS = ['รหัส (ID)', 'วันที่', 'เวลา', 'ประเภท', 'หมวดหมู่', 'รายการ', 'จำนวนเงิน (บาท)', 'หมายเหตุ', 'เวลาที่บันทึก'];
 var BUDGET_HEADERS = ['ID', 'หมวดหมู่', 'ชื่อรายการ', 'จำนวนเงิน (บาท)', 'เวลาอัปเดต', 'ข้อมูลรายการ (JSON)'];
 var SAVINGS_HEADERS = ['รหัสเป้าหมาย', 'ชื่อเป้าหมาย', 'เป้าหมายรวม (บาท)', 'ยอดสะสมปัจจุบัน (บาท)', 'แผนออมต่อเดือน (บาท)', 'หมายเหตุ', 'ประวัติ (JSON)'];
+
+function normalizeCategory_(category) {
+  var aliases = {
+    'อาหารและเครื่องดื่ม': 'ค่าอาหาร',
+    'การเดินทาง': 'ค่าเดินทาง',
+    'บิลและค่าใช้จ่ายประจำ': 'ค่าใช้จ่ายประจำ',
+    'ความบันเทิงและพักผ่อน': 'ค่าความบันเทิง',
+    'สุขภาพและยา': 'ค่าสุขภาพ',
+    'ของใช้และช็อปปิ้ง': 'ค่าของใช้ส่วนตัว',
+    'หนี้สิน': 'ค่าหนี้สิน',
+    'เงินออม': 'ค่าหนี้สิน'
+  };
+  return aliases[String(category || '')] || String(category || '');
+}
 
 function doGet(e) {
   try {
@@ -135,7 +149,7 @@ function readTransactions_(ss) {
       return {
         id: String(row[0]), date: normalizeDate_(row[1]), time: String(row[2] || ''),
         type: row[3] === 'รายรับ' || row[3] === 'income' ? 'income' : 'expense',
-        category: String(row[4] || '') === 'เงินออม' ? 'หนี้สิน' : String(row[4] || ''),
+        category: normalizeCategory_(row[4]),
         title: String(row[5] || ''), amount: Number(row[6]) || 0,
         note: String(row[7] || ''), createdAt: Number(row[8]) || ''
       };
@@ -151,7 +165,7 @@ function readBudgetItems_(ss) {
       try { item = JSON.parse(row[5] || '{}'); } catch (error) {}
       return Object.assign({}, item, {
         id: item.id || String(row[0]),
-        category: String(row[1] || item.category || '') === 'เงินออม' ? 'หนี้สิน' : String(row[1] || item.category || ''),
+        category: normalizeCategory_(row[1] || item.category || ''),
         name: item.name || String(row[2] || ''),
         amount: Number(item.amount !== undefined ? item.amount : row[3]) || 0,
         updatedAt: item.updatedAt || String(row[4] || '')
@@ -178,7 +192,7 @@ function groupBudgets_(items) {
   var groups = {};
   items.forEach(function(item) {
     var category = item.category || 'ค่าใช้จ่ายอื่นๆ';
-    if (category === 'เงินออม') category = 'หนี้สิน';
+    category = normalizeCategory_(category);
     if (!groups[category]) groups[category] = [];
     groups[category].push(item);
   });
@@ -370,7 +384,7 @@ export async function fetchFromGoogleSheet(): Promise<{
         date: normalizeSheetDate(String(t.date || '')),
         time: normalizeSheetTime(String(t.time || '')),
         type: t.type === 'income' || t.type === 'รายรับ' ? 'income' : 'expense',
-        category: String(t.category || 'ค่าใช้จ่ายอื่นๆ') === 'เงินออม' ? 'หนี้สิน' : String(t.category || 'ค่าใช้จ่ายอื่นๆ'),
+        category: normalizeCategoryName(String(t.category || 'ค่าใช้จ่ายอื่นๆ')),
         title: String(t.title || 'รายการ'),
         amount: Number(t.amount) || 0,
         note: t.note ? String(t.note) : undefined,
@@ -383,7 +397,7 @@ export async function fetchFromGoogleSheet(): Promise<{
         parsedBudgets = json.budgets.map((b: any) => {
           let items = Array.isArray(b.items) ? b.items : [];
           return {
-          category: b.category === 'เงินออม' ? 'หนี้สิน' : b.category,
+          category: normalizeCategoryName(String(b.category || 'ค่าใช้จ่ายอื่นๆ')) as CategoryBudget['category'],
             totalPlanned: Number(b.totalPlanned) || 0,
             items: items.map((i: any) => ({
               ...i,
@@ -402,7 +416,7 @@ export async function fetchFromGoogleSheet(): Promise<{
         // Group budgetItems by category
         const groupMap: Record<string, any[]> = {};
         for (const item of json.budgetItems) {
-          const cat = item.category === 'เงินออม' ? 'หนี้สิน' : item.category || 'ค่าใช้จ่ายอื่นๆ';
+          const cat = normalizeCategoryName(String(item.category || 'ค่าใช้จ่ายอื่นๆ'));
           if (!groupMap[cat]) groupMap[cat] = [];
           groupMap[cat].push({
             ...item,

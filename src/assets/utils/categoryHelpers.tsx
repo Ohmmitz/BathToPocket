@@ -1,4 +1,5 @@
 import React from 'react';
+import { normalizeCategoryName } from './finance.ts';
 import {
   Utensils,
   Car,
@@ -25,8 +26,9 @@ export interface CategoryInfo {
 }
 
 export function getCategoryInfo(categoryName: string): CategoryInfo {
+  categoryName = normalizeCategoryName(categoryName);
   switch (categoryName) {
-    case 'อาหารและเครื่องดื่ม':
+    case 'ค่าอาหาร':
       return {
         name: categoryName,
         icon: <Utensils className="w-4 h-4" />,
@@ -36,7 +38,7 @@ export function getCategoryInfo(categoryName: string): CategoryInfo {
         borderColor: 'border-orange-200',
         progressColor: 'bg-orange-500',
       };
-    case 'การเดินทาง':
+    case 'ค่าเดินทาง':
       return {
         name: categoryName,
         icon: <Car className="w-4 h-4" />,
@@ -46,7 +48,7 @@ export function getCategoryInfo(categoryName: string): CategoryInfo {
         borderColor: 'border-blue-200',
         progressColor: 'bg-blue-500',
       };
-    case 'บิลและค่าใช้จ่ายประจำ':
+    case 'ค่าใช้จ่ายประจำ':
       return {
         name: categoryName,
         icon: <Receipt className="w-4 h-4" />,
@@ -56,7 +58,7 @@ export function getCategoryInfo(categoryName: string): CategoryInfo {
         borderColor: 'border-purple-200',
         progressColor: 'bg-purple-500',
       };
-    case 'ความบันเทิงและพักผ่อน':
+    case 'ค่าความบันเทิง':
       return {
         name: categoryName,
         icon: <Film className="w-4 h-4" />,
@@ -66,7 +68,7 @@ export function getCategoryInfo(categoryName: string): CategoryInfo {
         borderColor: 'border-pink-200',
         progressColor: 'bg-pink-500',
       };
-    case 'สุขภาพและยา':
+    case 'ค่าสุขภาพ':
       return {
         name: categoryName,
         icon: <HeartPulse className="w-4 h-4" />,
@@ -76,7 +78,7 @@ export function getCategoryInfo(categoryName: string): CategoryInfo {
         borderColor: 'border-rose-200',
         progressColor: 'bg-rose-500',
       };
-    case 'ของใช้และช็อปปิ้ง':
+    case 'ค่าของใช้ส่วนตัว':
       return {
         name: categoryName,
         icon: <ShoppingBag className="w-4 h-4" />,
@@ -86,7 +88,7 @@ export function getCategoryInfo(categoryName: string): CategoryInfo {
         borderColor: 'border-amber-200',
         progressColor: 'bg-amber-500',
       };
-    case 'หนี้สิน':
+    case 'ค่าหนี้สิน':
       return {
         name: categoryName,
         icon: <CreditCard className="w-4 h-4" />,

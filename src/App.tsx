@@ -12,6 +12,7 @@ import brandLogo from './assets/favicon.svg';
 import {
   getLatestTransaction,
   getAccountingPeriodMonth,
+  normalizeCategoryName,
 } from './assets/utils/finance.ts';
 import type { Transaction, CategoryBudget, SavingGoal } from './assets/utils/finance.ts';
 import {
@@ -49,9 +50,10 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
       if (saved) {
         const restored: Transaction[] = JSON.parse(saved);
-        return restored.map((transaction) => transaction.category === 'เงินออม'
-          ? { ...transaction, category: 'หนี้สิน' }
-          : transaction);
+        return restored.map((transaction) => ({
+          ...transaction,
+          category: normalizeCategoryName(transaction.category),
+        }));
       }
     } catch (e) {
       console.error(e);
@@ -65,9 +67,10 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEYS.BUDGETS);
       if (saved) {
         const restored: CategoryBudget[] = JSON.parse(saved);
-        return restored.map((budget) => String(budget.category) === 'เงินออม'
-          ? { ...budget, category: 'หนี้สิน' }
-          : budget);
+        return restored.map((budget) => ({
+          ...budget,
+          category: normalizeCategoryName(String(budget.category)) as CategoryBudget['category'],
+        }));
       }
     } catch (e) {
       console.error(e);
@@ -465,7 +468,7 @@ export default function App() {
     const savingTx: Transaction = {
       id: `tx-save-${Date.now()}`,
       type: 'expense',
-      category: 'หนี้สิน',
+      category: 'ค่าหนี้สิน',
       title: `ออมเงิน: ${targetGoal?.title || 'เงินเก็บ'}`,
       amount,
       date: depositDate,
@@ -520,6 +523,22 @@ export default function App() {
     showToast(`สร้างเป้าหมาย "${createdGoal.title}" เรียบร้อยแล้ว`, 'success');
   };
 
+  const handleUpdateSavingGoal = async (
+    goalId: string,
+    updates: Pick<SavingGoal, 'title' | 'targetAmount' | 'monthlyPlan' | 'notes'>,
+  ) => {
+    const nextSavings = savings.map((goal) => goal.id === goalId ? { ...goal, ...updates } : goal);
+    setSavings(nextSavings);
+
+    if (isGoogleSheetConfigured) {
+      setIsSyncing(true);
+      sendToGoogleSheet('syncAll', getFullPayload(transactions, budgets, nextSavings))
+        .finally(() => setIsSyncing(false));
+    }
+
+    showToast('แก้ไขเป้าหมายเงินออมเรียบร้อยแล้ว', 'success');
+  };
+
   // Handler: Delete saving goal
   const handleDeleteSavingGoal = async (goalId: string) => {
     const nextSavings = savings.filter((g) => g.id !== goalId);
@@ -538,11 +557,11 @@ export default function App() {
     <div className="min-h-screen relative flex flex-col bg-snow-drift-50 text-celtic-900 selection:bg-apple-200 selection:text-celtic-900">
       {/* Toast notification */}
       {toast && (
-        <div className="fixed top-3 left-3 right-3 sm:left-auto sm:right-5 sm:top-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl glass-island text-gray-900 text-sm animate-in slide-in-from-top-4 duration-200">
+        <div className="page-edge-toast fixed top-3 sm:top-5 sm:max-w-96 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl glass-island text-gray-900 text-sm animate-in slide-in-from-top-4 duration-200">
           {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
           {toast.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
           {toast.type === 'info' && <Info className="w-4 h-4 text-amber-600 shrink-0" />}
-          <span>{toast.message}</span>
+          <span className="min-w-0 flex-1 break-words">{toast.message}</span>
           <button
             onClick={() => setToast(null)}
             className="p-1 text-gray-400 hover:text-gray-700 ml-2 rounded-lg"
@@ -561,7 +580,7 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <main className="relative z-10 flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 pt-5 pb-28 lg:pb-12">
+      <main className="relative z-10 min-w-0 flex-1 max-w-5xl w-full mx-auto page-gutter-x pt-5 pb-28 lg:pb-12">
         {activeTab === 'summary' && (
           <ExpenseSummaryView
             transactions={transactions}
@@ -579,8 +598,6 @@ export default function App() {
             onAddTransaction={handleAddTransaction}
             budgets={budgets}
             currentTransactions={transactions}
-            onOpenUndoModal={() => setIsUndoModalOpen(true)}
-            hasTransactionsToUndo={Boolean(latestTransaction)}
           />
         )}
 
@@ -597,6 +614,7 @@ export default function App() {
             savings={savings}
             onAddSavingDeposit={handleAddSavingDeposit}
             onCreateSavingGoal={handleCreateSavingGoal}
+            onUpdateSavingGoal={handleUpdateSavingGoal}
             onDeleteSavingGoal={handleDeleteSavingGoal}
             isSyncing={isSyncing}
           />

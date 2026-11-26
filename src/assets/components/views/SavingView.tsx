@@ -7,25 +7,30 @@ import {
   Trash2, 
   ShieldCheck,
   ArrowLeft,
+  Edit3,
 } from 'lucide-react';
-import { SavingGoal, Transaction } from '../../utils/finance.ts';
+import { SavingGoal } from '../../utils/finance.ts';
 import { ParliamentChart } from '../ParliamentChart.tsx';
 import { AnimatedNumber } from '../AnimatedNumber.tsx';
+import { PageHeader } from '../PageHeader.tsx';
 
 interface SavingsViewProps {
   savings: SavingGoal[];
   onAddSavingDeposit: (goalId: string, amount: number, date: string, note?: string) => Promise<void>;
   onCreateSavingGoal: (newGoal: Omit<SavingGoal, 'id' | 'history'>) => Promise<void>;
+  onUpdateSavingGoal: (goalId: string, updates: Pick<SavingGoal, 'title' | 'targetAmount' | 'monthlyPlan' | 'notes'>) => Promise<void>;
   onDeleteSavingGoal: (goalId: string) => Promise<void>;
   isSyncing: boolean;
 }
 
-type SavingsPage = 'overview' | 'goals' | 'create';
+type SavingsPage = 'overview' | 'goals' | 'create' | 'edit';
+type SavingsChartMode = 'accumulated' | 'target' | 'proportion';
 
 export const SavingsView: React.FC<SavingsViewProps> = ({
   savings,
   onAddSavingDeposit,
   onCreateSavingGoal,
+  onUpdateSavingGoal,
   onDeleteSavingGoal,
   isSyncing,
 }) => {
@@ -45,12 +50,13 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
 
   // Create Goal form state
   const [activePage, setActivePage] = useState<SavingsPage>('overview');
+  const [editingGoal, setEditingGoal] = useState<SavingGoal | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newTarget, setNewTarget] = useState('');
   const [newInitial, setNewInitial] = useState('');
   const [newMonthlyPlan, setNewMonthlyPlan] = useState('');
   const [newNotes, setNewNotes] = useState('');
-  const [showTotalTarget, setShowTotalTarget] = useState(false);
+  const [summaryChartMode, setSummaryChartMode] = useState<SavingsChartMode>('accumulated');
 
   // Total accumulated savings
   const totalAccumulatedSavings = savings.reduce((sum, g) => sum + (Number(g.currentAmount) || 0), 0);
@@ -84,49 +90,77 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
 
     if (!newTitle.trim() || isNaN(target) || target <= 0) return;
 
-    await onCreateSavingGoal({
-      title: newTitle.trim(),
-      targetAmount: target,
-      currentAmount: initial,
-      monthlyPlan: monthly,
-      notes: newNotes.trim() || undefined,
-    });
+    if (editingGoal) {
+      await onUpdateSavingGoal(editingGoal.id, {
+        title: newTitle.trim(),
+        targetAmount: target,
+        monthlyPlan: monthly,
+        notes: newNotes.trim() || undefined,
+      });
+      setActivePage('goals');
+    } else {
+      await onCreateSavingGoal({
+        title: newTitle.trim(),
+        targetAmount: target,
+        currentAmount: initial,
+        monthlyPlan: monthly,
+        notes: newNotes.trim() || undefined,
+      });
+      setActivePage('goals');
+    }
 
     setNewTitle('');
     setNewTarget('');
     setNewInitial('');
     setNewMonthlyPlan('');
     setNewNotes('');
-    setActivePage('goals');
+    setEditingGoal(null);
+  };
+
+  const handleEditGoal = (goal: SavingGoal) => {
+    setEditingGoal(goal);
+    setNewTitle(goal.title);
+    setNewTarget(String(goal.targetAmount));
+    setNewInitial(String(goal.currentAmount));
+    setNewMonthlyPlan(String(goal.monthlyPlan || ''));
+    setNewNotes(goal.notes || '');
+    setActivePage('edit');
+  };
+
+  const handleCancelGoalForm = () => {
+    setEditingGoal(null);
+    setNewTitle('');
+    setNewTarget('');
+    setNewInitial('');
+    setNewMonthlyPlan('');
+    setNewNotes('');
+    setActivePage(activePage === 'edit' ? 'goals' : 'overview');
   };
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-2 pb-8">
       {/* Savings header and page shortcuts */}
-      <div className="glass-card flex items-center justify-between gap-3 rounded-3xl p-4 sm:p-5">
-        <div className="flex min-w-0 items-center gap-2">
-          {activePage !== 'overview' && (
-            <button
-              type="button"
-              onClick={() => setActivePage('overview')}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-snow-drift-100 text-celtic-800 hover:bg-snow-drift-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
-              aria-label="กลับหน้าสรุปเงินออม"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-          )}
-          <h1 className="min-w-0 text-lg font-medium leading-tight text-celtic-900 sm:text-xl">
-            {activePage === 'overview' ? 'เงินออม' : activePage === 'goals' ? 'รายการเป้าหมายเงินออมทั้งหมด' : 'ตั้งเป้าหมายเงินออมใหม่'}
-          </h1>
-        </div>
-        {activePage === 'overview' && (
-          <div className="flex shrink-0 items-center gap-2">
+      <PageHeader
+        title={activePage === 'overview' ? 'เงินออม' : activePage === 'goals' ? 'เป้าหมายเงินออม' : activePage === 'edit' ? 'แก้ไขเป้าหมาย' : 'ตั้งเป้าหมาย'}
+        inlineTrailing={activePage === 'overview'}
+        leading={activePage !== 'overview' ? (
+          <button
+            type="button"
+            onClick={() => activePage === 'edit' ? handleCancelGoalForm() : setActivePage('overview')}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-snow-drift-100 text-celtic-800 hover:bg-snow-drift-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
+            aria-label={activePage === 'edit' ? 'กลับหน้าเป้าหมายเงินออม' : 'กลับหน้าสรุปเงินออม'}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+        ) : undefined}
+        trailing={activePage === 'overview' ? (
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setActivePage('goals')}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-snow-drift-100 text-celtic-900 transition-colors hover:bg-apple-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
-              aria-label="ไปหน้ารายการเป้าหมายเงินออมทั้งหมด"
-              title="รายการเป้าหมายเงินออมทั้งหมด"
+              aria-label="ไปหน้าเป้าหมายเงินออม"
+              title="เป้าหมายเงินออม"
             >
               <Target className="h-5 w-5" />
             </button>
@@ -134,39 +168,40 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
               type="button"
               onClick={() => setActivePage('create')}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-apple-200 text-celtic-900 transition-colors hover:bg-apple-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
-              aria-label="ไปหน้าตั้งเป้าหมายเงินออมใหม่"
-              title="ตั้งเป้าหมายเงินออมใหม่"
+              aria-label="ไปหน้าตั้งเป้าหมาย"
+              title="ตั้งเป้าหมาย"
             >
               <Plus className="h-5 w-5" />
             </button>
           </div>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       {activePage === 'overview' && <>
       {/* Savings Summary Banner */}
-      <div className="rounded-3xl p-2 text-celtic-900 sm:p-6">
-        <div className="flex flex-col items-center gap-3">
+      <div className="w-full text-celtic-900">
+        <div className="parliament-chart-stage">
           <ParliamentChart
-            className="max-w-96"
             percentage={overallPercentage}
             ariaLabel={`ออมได้ ${overallPercentage}% จากเป้าหมายรวม`}
           >
               <button
                 type="button"
-                onClick={() => setShowTotalTarget((current) => !current)}
+                onClick={() => setSummaryChartMode((current) => current === 'accumulated'
+                  ? 'target'
+                  : current === 'target' ? 'proportion' : 'accumulated')}
                 className="flex flex-col items-center rounded-2xl p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
-                aria-label="สลับระหว่างยอดออมสะสมรวมกับเป้าหมายรวม"
-                aria-pressed={showTotalTarget}
+                aria-label={summaryChartMode === 'accumulated'
+                  ? 'แสดงยอดเป้าหมายเงินออมรวม'
+                  : summaryChartMode === 'target' ? 'แสดงสัดส่วนเงินออมที่สะสม' : 'กลับไปแสดงยอดเงินออมที่สะสม'}
               >
+                <span className="font-onest mt-1 text-5xl font-bold text-celtic-900 tracking-tight">
+                  {summaryChartMode === 'proportion'
+                    ? <AnimatedNumber value={overallPercentage} suffix="%" maximumFractionDigits={0} />
+                    : (summaryChartMode === 'target' ? totalTargetSavings : totalAccumulatedSavings).toLocaleString('th-TH')}
+                </span>
                 <span className="text-base font-medium text-celtic-700 hover:text-apple-400">
-                  {showTotalTarget ? 'เป้าหมายรวมทุกเป้าหมาย' : 'ยอดเงินออมสะสมรวม'}
-                </span>
-                <span className="font-onest mt-1 text-5xl font-bold text-celtic-900">
-                  {(showTotalTarget ? totalTargetSavings : totalAccumulatedSavings).toLocaleString('th-TH')}
-                </span>
-                <span className="mt-4 text-sm font-normal text-celtic-800">
-                  คิดเป็น <AnimatedNumber value={overallPercentage} suffix="%" maximumFractionDigits={0} />
+                  {summaryChartMode === 'accumulated' ? 'สะสมไปแล้ว (บาท)' : summaryChartMode === 'target' ? 'จากทั้งหมด (บาท)' : 'คิดเป็น'}
                 </span>
               </button>
           </ParliamentChart>
@@ -249,8 +284,11 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
       </>}
 
       {/* New goal page */}
-      {activePage === 'create' && (
+      {(activePage === 'create' || activePage === 'edit') && (
         <section className="glass-card rounded-3xl p-5 sm:p-6" aria-labelledby="create-saving-goal-title">
+          <h2 id="create-saving-goal-title" className="mb-3 text-lg font-medium text-celtic-900">
+            {activePage === 'edit' ? 'แก้ไขเป้าหมาย' : 'ตั้งเป้าหมาย'}
+          </h2>
           <form onSubmit={handleCreateGoalSubmit} className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -283,17 +321,26 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  ยอดเงินเริ่มต้นที่มีอยู่แล้ว (ถ้ามี)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={newInitial}
-                  onChange={(e) => setNewInitial(e.target.value)}
-                  placeholder="0"
-                  className="w-full px-3 py-2 text-xs bg-white border border-gray-300 rounded-lg text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none font-onest"
-                />
+                {activePage === 'create' ? (
+                  <>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">
+                      ยอดเงินเริ่มต้นที่มีอยู่แล้ว (ถ้ามี)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newInitial}
+                      onChange={(e) => setNewInitial(e.target.value)}
+                      placeholder="0"
+                      className="w-full px-3 py-2 text-xs bg-white border border-gray-300 rounded-lg text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none font-onest"
+                    />
+                  </>
+                ) : (
+                  <div className="rounded-lg bg-snow-drift-100 p-3">
+                    <span className="block text-xs font-bold text-celtic-700">ยอดเงินสะสมปัจจุบัน</span>
+                    <span className="font-onest text-base font-medium text-celtic-900">{(Number(newInitial) || 0).toLocaleString('th-TH')} บาท</span>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -327,7 +374,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setActivePage('overview')}
+                onClick={handleCancelGoalForm}
                 className="rounded-full px-4 py-2.5 text-sm font-medium text-celtic-700 hover:bg-snow-drift-100 transition-colors"
               >
                 ยกเลิก
@@ -336,7 +383,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                 type="submit"
                 className="rounded-full bg-apple-300 px-5 py-2.5 text-sm font-medium text-celtic-900 transition-colors hover:bg-apple-400"
               >
-                สร้างเป้าหมาย
+                {activePage === 'edit' ? 'บันทึกการแก้ไข' : 'สร้างเป้าหมาย'}
               </button>
             </div>
           </form>
@@ -347,7 +394,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
       {activePage === 'goals' && <section className="space-y-4" aria-labelledby="all-saving-goals-title">
         <div>
           <h2 id="all-saving-goals-title" className="text-base font-medium text-celtic-900">
-            รายการเป้าหมายเงินออมทั้งหมด ({savings.length})
+            เป้าหมายเงินออม ({savings.length})
           </h2>
           {savings.length > 1 && <p className="mt-1 text-xs text-celtic-700">เลื่อนแนวนอนเพื่อดูเป้าหมายอื่น</p>}
         </div>
@@ -390,10 +437,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="p-2 rounded-xl bg-teal-50 text-teal-800">
-                          <Target className="w-4 h-4" />
-                        </div>
+                      <div className="flex min-w-0 items-center gap-2">
                         <div>
                           <h3 className="text-sm font-bold text-gray-900">
                             {goal.title}
@@ -406,15 +450,27 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => onDeleteSavingGoal(goal.id)}
-                        className="p-1.5 text-gray-300 hover:text-rose-600 rounded-lg transition-colors"
-                        title="ลบเป้าหมายนี้"
-                        aria-label={`ลบเป้าหมาย ${goal.title}`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleEditGoal(goal)}
+                          className="rounded-lg p-1.5 text-celtic-700 transition-colors hover:bg-apple-200 hover:text-celtic-900"
+                          title="แก้ไขเป้าหมายนี้"
+                          aria-label={`แก้ไขเป้าหมาย ${goal.title}`}
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => onDeleteSavingGoal(goal.id)}
+                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:text-rose-600"
+                          title="ลบเป้าหมายนี้"
+                          aria-label={`ลบเป้าหมาย ${goal.title}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Numbers */}

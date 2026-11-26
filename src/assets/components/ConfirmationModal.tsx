@@ -175,7 +175,7 @@ export const TransactionSummaryModal: React.FC<TransactionSummaryModalProps> = (
   const catInfo = getCategoryInfo(transaction.category);
 
   return (
-    <div className={isFullPage ? 'w-full animate-in fade-in duration-200' : 'fixed inset-0 z-[100] flex items-center justify-center bg-celtic-900/80 p-4 animate-in fade-in duration-200'}>
+    <div className={isFullPage ? 'w-full animate-in fade-in duration-200' : 'fixed inset-0 z-[100] flex items-center justify-center bg-celtic-900/80 page-gutter-x py-4 animate-in fade-in duration-200'}>
       <div
         className={isFullPage ? 'mx-auto w-full max-w-3xl overflow-hidden glass-card rounded-3xl border border-white/80' : 'w-full max-w-md overflow-hidden glass-island rounded-4xl'}
         role={isFullPage ? 'region' : 'dialog'}
@@ -316,7 +316,7 @@ export const UndoModal: React.FC<UndoModalProps> = ({
   if (!isOpen || !latestTransaction) return null;
 
   return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-celtic-900/80 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-100 flex items-center justify-center page-gutter-x py-4 bg-celtic-900/80 animate-in fade-in duration-200">
       <div 
         className="w-full max-w-md glass-island rounded-3xl shadow-2xl border border-white/95 overflow-hidden transform transition-all"
         role="dialog"

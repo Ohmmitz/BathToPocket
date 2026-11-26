@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { 
   History,
   Search,
-  Sparkles,
 } from 'lucide-react';
 import { 
   Transaction, 
@@ -13,12 +12,25 @@ import {
 import { ParliamentChart } from '../ParliamentChart.tsx';
 import { AnimatedNumber } from '../AnimatedNumber.tsx';
 import { getCategoryInfo } from '../../utils/categoryHelpers.tsx';
+import { useCenterSnapFilter } from '../useCenterSnapFilter.ts';
+import { MonthSelector, PageHeader } from '../PageHeader.tsx';
 
 const transactionIconAssets = import.meta.glob('../../icon-optimized/*.png', {
   eager: true,
   import: 'default',
   query: '?url',
 }) as Record<string, string>;
+
+const CATEGORY_SHARE_COLORS: Record<string, string> = {
+  'ค่าอาหาร': '#D84B0A',
+  'ค่าเดินทาง': '#0A97D8',
+  'ค่าใช้จ่ายประจำ': '#B20AD8',
+  'ค่าความบันเทิง': '#0A30D8',
+  'ค่าสุขภาพ': '#0AD8B2',
+  'ค่าของใช้ส่วนตัว': '#FFD400',
+  'ค่าหนี้สิน': '#FF7A0C',
+  'ค่าใช้จ่ายอื่นๆ': '#808080',
+};
 
 function formatHistoryDate(dateStr: string): string {
   const today = new Date();
@@ -38,6 +50,8 @@ interface ExpenseSummaryViewProps {
   onNavigateToAdd: () => void;
   onNavigateToHistory: () => void;
 }
+
+type SummaryChartMode = 'spent' | 'remaining' | 'categoryShares';
 
 export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
   transactions,
@@ -71,7 +85,8 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
   monthOptions.reverse();
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [showRemainingBudget, setShowRemainingBudget] = useState(false);
+  const categoryFilterRef = useCenterSnapFilter(selectedCategory ?? 'all');
+  const [chartMode, setChartMode] = useState<SummaryChartMode>('spent');
   const currentMonthTransactions = transactions.filter(t => getAccountingPeriodMonth(t.date) === selectedMonth);
   const totalIncome = currentMonthTransactions
     .filter((transaction) => transaction.type === 'income')
@@ -96,47 +111,86 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
   const expenseRatio = totalIncome > 0
     ? Math.round((displayedExpense / totalIncome) * 100)
     : displayedExpense > 0 ? 100 : 0;
+  const categoryShareRatio = totalExpense > 0
+    ? Math.round((displayedExpense / totalExpense) * 100)
+    : 0;
   const remainingRatio = totalIncome > 0
     ? Math.round((Math.max(0, remainingAmount) / totalIncome) * 100)
     : 0;
-  const displayedRatio = showRemainingBudget ? remainingRatio : expenseRatio;
+  const displayedRatio = chartMode === 'categoryShares'
+    ? categoryShareRatio
+    : chartMode === 'remaining' ? remainingRatio : expenseRatio;
+  const chartAmount = chartMode === 'remaining' ? Math.abs(remainingAmount) : displayedExpense;
   const progressRatio = Math.min(100, Math.max(0, displayedRatio));
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-2 pb-8">
-      {/* Month Selector Bar & Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-4 py-3 sm:px-5">
-        <div>
-          <h1 className="text-xl font-bold text-celtic-900">
-            สรุปค่าใช้จ่าย
-          </h1>
-        </div>
-        <div className="flex items-center justify-between gap-4 sm:justify-end">
-          <label htmlFor="month-select" className="text-base text-celtic-700 font-medium">
-            ของเดือน
-          </label>
-          <select
-            id="month-select"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="px-0 py-0 text-xs rounded-xl text-celtic-700 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-2xs backdrop-blur-md"
-          >
-            {monthOptions.map((month) => (
-              <option key={month.value} value={month.value}>{month.label}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <PageHeader
+        title="สรุปค่าใช้จ่าย"
+        trailing={<MonthSelector id="month-select" value={selectedMonth} options={monthOptions} onChange={setSelectedMonth} />}
+      />
       {/* Circular budget progress and category filters */}
-      <section className="glass-card p-2" aria-labelledby="budget-progress-heading">
-        <div className="filter-tag-scroll flex flex-nowrap gap-2 mb-0 overflow-x-auto overscroll-x-contain whitespace-nowrap pb-4" role="group" aria-label="กรองตามหมวดหมู่">
+      <section className="glass-card p-0" aria-labelledby="budget-progress-heading">
+        <div className="parliament-chart-stage">
+          <ParliamentChart
+            percentage={chartMode === 'categoryShares' && selectedCategory === null
+              ? (totalExpense > 0 ? 100 : 0)
+              : progressRatio}
+            segments={chartMode === 'categoryShares' && selectedCategory === null
+              ? categoryStats.map(({ category, spent }) => ({
+                value: spent,
+                color: CATEGORY_SHARE_COLORS[category] || '#808080',
+              }))
+              : undefined}
+            activeColor={selectedCategory
+              ? CATEGORY_SHARE_COLORS[selectedCategory] || '#52F229'
+              : chartMode === 'remaining' && remainingAmount < 0 ? '#90242D' : '#52F229'}
+            ariaLabel={chartMode === 'categoryShares'
+              ? `สัดส่วนรายจ่าย${selectedCategory ? `หมวด${selectedCategory}` : 'รวม'} ${categoryShareRatio}%`
+              : chartMode === 'remaining' ? `เหลือจากรายรับ ${remainingRatio}%` : `รายจ่ายคิดเป็น ${expenseRatio}% ของรายรับ`}
+          >
+              <button
+                type="button"
+                onClick={() => {
+                  setChartMode((current) => current === 'spent'
+                    ? 'remaining'
+                    : current === 'remaining' ? 'categoryShares' : 'spent');
+                }}
+                className="flex flex-col items-center justify-center rounded-2xl p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600"
+                aria-label={chartMode === 'spent'
+                  ? 'แสดงยอดเงินคงเหลือ'
+                  : chartMode === 'remaining'
+                    ? 'แสดงสัดส่วนรายจ่าย'
+                    : 'กลับไปยอดเงินที่ใช้ไป'}
+              >
+                <AnimatedNumber
+                  className="mt-1 text-5xl font-bold text-celtic-900 tracking-tight sm:text-6xl"
+                  value={chartMode === 'categoryShares' ? remainingRatio : chartAmount}
+                  prefix={chartMode === 'remaining' && remainingAmount < 0 ? '−' : ''}
+                  suffix={chartMode === 'categoryShares' ? '%' : ''}
+                  maximumFractionDigits={0}
+                />
+                <span className="text-base font-medium text-celtic-700 hover:text-emerald-800">
+                  {chartMode === 'categoryShares'
+                    ? 'คิดเป็น'
+                    : chartMode === 'remaining' ? 'คงเหลือ (บาท)' : 'ใช้เงินไป (บาท)'}
+                </span>
+                {chartMode === 'remaining' && remainingAmount < 0 && (
+                  <span className="text-[10px] text-rose-600 mt-0.5">
+                    รายจ่ายเกินรายรับ <AnimatedNumber value={Math.abs(remainingAmount)} maximumFractionDigits={0} /> บาท
+                  </span>
+                )}
+              </button>
+          </ParliamentChart>
+        </div>
+        <div ref={categoryFilterRef} className="filter-tag-scroll relative z-0 flex flex-nowrap gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap pb-1 pt-4 -mt-24" role="group" aria-label="กรองตามหมวดหมู่">
           <button
             type="button"
             onClick={() => setSelectedCategory(null)}
             aria-pressed={selectedCategory === null}
-            className={`shrink-0 px-4 py-1.6 rounded-full border text-xs font-semibold transition-colors ${
+            className={`shrink-0 px-4 py-1.5 rounded-full border text-xs font-semibold transition-colors ${
               selectedCategory === null
-                ? 'bg-apple-300 text-celtic-900'
+                ? 'bg-apple-200 text-celtic-900'
                 : 'bg-snow-drift-100 text-celtic-900 hover:bg-apple-200'
             }`}
           >
@@ -146,11 +200,14 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
             <button
               key={category}
               type="button"
-              onClick={() => setSelectedCategory(category)}
+              onClick={() => {
+                setSelectedCategory(category);
+                setChartMode('spent');
+              }}
               aria-pressed={selectedCategory === category}
               className={`shrink-0 px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors ${
                 selectedCategory === category
-                  ? 'bg-apple-300 text-celtic-900'
+                  ? 'bg-apple-200 text-celtic-900'
                   : 'bg-snow-drift-100 text-celtic-900 hover:bg-apple-200'
               }`}
             >
@@ -158,63 +215,9 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
             </button>
           ))}
         </div>
-        <div className="flex justify-center py-1">
-          <ParliamentChart
-            className="max-w-96"
-            percentage={progressRatio}
-            activeColor={remainingAmount < 0 ? '#90242D' : '#52F229'}
-            ariaLabel={showRemainingBudget ? `เหลือจากรายรับ ${remainingRatio}%` : `รายจ่ายคิดเป็น ${expenseRatio}% ของรายรับ`}
-          >
-              <button
-                type="button"
-                onClick={() => setShowRemainingBudget((current) => !current)}
-                className="flex flex-col items-center justify-center rounded-2xl p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600"
-                aria-label="สลับระหว่างงบที่ใช้ไปกับงบที่เหลือ"
-                aria-pressed={showRemainingBudget}
-              >
-                <span className="text-base font-medium text-celtic-700 hover:text-emerald-800">
-                  {showRemainingBudget ? 'ยอดเงินคงเหลือ' : 'ยอดเงินที่ใช้ไป'}
-                </span>
-                <AnimatedNumber
-                  className="mt-1 text-5xl font-bold text-celtic-900"
-                  value={showRemainingBudget ? Math.abs(remainingAmount) : displayedExpense}
-                  prefix={showRemainingBudget && remainingAmount < 0 ? '−' : ''}
-                />
-                {showRemainingBudget && remainingAmount < 0 && (
-                  <span className="text-[10px] text-rose-600 mt-0.5">
-                    รายจ่ายเกินรายรับ <AnimatedNumber value={Math.abs(remainingAmount)} /> บาท
-                  </span>
-                )}
-                <span className="text-sm font-normal text-celtic-800 mt-4">
-                  คิดเป็น <AnimatedNumber value={displayedRatio} suffix="%" maximumFractionDigits={0} />
-                </span>
-              </button>
-          </ParliamentChart>
-        </div>
       </section>
       {/* Recent expense history */}
-      <section className="space-y-3" aria-labelledby="summary-history-heading">
-        <div className="flex items-center justify-between gap-3 px-1">
-          <div className="min-w-0">
-            <h2 id="summary-history-heading" className="text-base font-semibold text-celtic-900">
-              {selectedCategory ? `ประวัติ${selectedCategory}` : 'ประวัติค่าใช้จ่าย'}
-            </h2>
-            <p className="mt-0.5 text-xs text-celtic-700">{expenseHistory.length} รายการในเดือนที่เลือก</p>
-          </div>
-          {expenseHistory.length > 0 && (
-            <button
-              type="button"
-              onClick={onNavigateToHistory}
-              className="flex min-h-10 shrink-0 z-10 items-center justify-center gap-1.5 rounded-full bg-apple-200 px-3 text-xs font-semibold text-celtic-900 transition-colors hover:bg-apple-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
-              aria-label="ไปหน้าประวัติรายการบันทึก"
-              title="ดูประวัติทั้งหมด"
-            >
-              <History className="h-4 w-4" />
-              <span>ดูทั้งหมด</span>
-            </button>
-          )}
-        </div>
-
+      <section className="space-y-3" aria-label="ประวัติค่าใช้จ่าย">
         {expenseHistory.length === 0 ? (
           <div className="rounded-2xl bg-transparent p-8 text-center">
             <Search className="mx-auto mb-2 h-6 w-6 text-celtic-700" />
@@ -257,6 +260,20 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
                 </article>
               );
             })}
+          </div>
+        )}
+        {expenseHistory.length > 0 && (
+          <div className="flex justify-center pt-1">
+            <button
+              type="button"
+              onClick={onNavigateToHistory}
+              className="flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-snow-drift-100/40 px-4 text-xs font-semibold text-celtic-900 transition-colors hover:bg-apple-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
+              aria-label="ไปหน้าประวัติรายการบันทึก"
+              title="ดูประวัติทั้งหมด"
+            >
+              <History className="h-4 w-4" />
+              <span>ดูทั้งหมด</span>
+            </button>
           </div>
         )}
       </section>

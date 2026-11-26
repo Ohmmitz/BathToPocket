@@ -83,7 +83,7 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-celtic-900/35 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center page-gutter-x py-4 bg-celtic-900/35 animate-in fade-in duration-200">
       <div 
         className="w-full max-w-2xl glass-island rounded-3xl shadow-2xl border border-white/95 overflow-hidden flex flex-col max-h-[90vh]"
         role="dialog"
