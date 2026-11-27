@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Header, MobileNav } from './assets/components/Header.tsx';
 import type { TabType } from './assets/components/Header.tsx';
 import { ExpenseSummaryView } from './assets/components/views/ExpenseSummaryView.tsx';
@@ -100,13 +100,45 @@ export default function App() {
   const [isUndoing, setIsUndoing] = useState(false);
 
   // Toast notification state
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const [toast, setToast] = useState<{ id: number; message: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const [isToastDismissing, setIsToastDismissing] = useState(false);
+  const toastIdRef = useRef(0);
+  const toastTimeoutRef = useRef<number | null>(null);
+  const toastExitTimeoutRef = useRef<number | null>(null);
+
+  const dismissToast = useCallback(() => {
+    if (toastTimeoutRef.current !== null) {
+      window.clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = null;
+    }
+    if (toastExitTimeoutRef.current !== null) {
+      window.clearTimeout(toastExitTimeoutRef.current);
+    }
+
+    setIsToastDismissing(true);
+    toastExitTimeoutRef.current = window.setTimeout(() => {
+      setToast(null);
+      setIsToastDismissing(false);
+      toastExitTimeoutRef.current = null;
+    }, 240);
+  }, []);
 
   const showToast = useCallback((message: string, type: 'success' | 'info' | 'error' = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => {
-      setToast((prev) => (prev?.message === message ? null : prev));
+    if (toastTimeoutRef.current !== null) window.clearTimeout(toastTimeoutRef.current);
+    if (toastExitTimeoutRef.current !== null) window.clearTimeout(toastExitTimeoutRef.current);
+
+    const id = toastIdRef.current + 1;
+    toastIdRef.current = id;
+    setIsToastDismissing(false);
+    setToast({ id, message, type });
+    toastTimeoutRef.current = window.setTimeout(() => {
+      if (toastIdRef.current === id) dismissToast();
     }, 3500);
+  }, [dismissToast]);
+
+  useEffect(() => () => {
+    if (toastTimeoutRef.current !== null) window.clearTimeout(toastTimeoutRef.current);
+    if (toastExitTimeoutRef.current !== null) window.clearTimeout(toastExitTimeoutRef.current);
   }, []);
 
   // Save changes to localStorage
@@ -557,14 +589,19 @@ export default function App() {
     <div className="min-h-screen relative flex flex-col bg-snow-drift-50 text-celtic-900 selection:bg-apple-200 selection:text-celtic-900">
       {/* Toast notification */}
       {toast && (
-        <div className="page-edge-toast fixed top-3 sm:top-5 sm:max-w-96 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl glass-island text-gray-900 text-sm animate-in slide-in-from-top-4 duration-200">
-          {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
-          {toast.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
-          {toast.type === 'info' && <Info className="w-4 h-4 text-amber-600 shrink-0" />}
+        <div
+          key={toast.id}
+          className={`page-edge-toast fixed top-3 sm:top-5 sm:max-w-96 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl bg-celtic-900 text-snow-drift-50 text-sm ${isToastDismissing ? 'toast-slide-up pointer-events-none' : 'toast-slide-down'}`}
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-apple-300 text-celtic-900">
+            {toast.type === 'success' && <CheckCircle2 className="w-4 h-4" />}
+            {toast.type === 'error' && <AlertCircle className="w-4 h-4" />}
+            {toast.type === 'info' && <Info className="w-4 h-4" />}
+          </span>
           <span className="min-w-0 flex-1 break-words">{toast.message}</span>
           <button
-            onClick={() => setToast(null)}
-            className="p-1 text-gray-400 hover:text-gray-700 ml-2 rounded-lg"
+            onClick={dismissToast}
+            className="p-1 text-snow-drift-50/70 hover:text-snow-drift-50 ml-2 rounded-lg"
           >
             <X className="w-3.5 h-3.5" />
           </button>

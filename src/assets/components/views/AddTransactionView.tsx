@@ -597,10 +597,10 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
           className="pointer-events-none fixed z-[150] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
           style={{ left: dragPreview.x, top: dragPreview.y }}
         >
-          <span className="flex h-16 w-16 items-center justify-center bg-transparent drop-shadow-[0_4px_12px_rgba(24,49,38,0.25)]">
+          <span className="flex h-24 w-24 items-center justify-center bg-transparent drop-shadow-[0_4px_12px_rgba(24,49,38,0.25)]">
             {dragPreview.item.icon && budgetIconUrls[dragPreview.item.icon]
               ? <img src={budgetIconUrls[dragPreview.item.icon]} alt="" draggable={false} className="h-full w-full select-none bg-transparent object-contain" />
-              : <span className="text-4xl" aria-hidden="true">{getCategoryInfo(category).emoji}</span>}
+              : <span className="text-5xl" aria-hidden="true">{getCategoryInfo(category).emoji}</span>}
           </span>
         </div>
       )}

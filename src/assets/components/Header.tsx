@@ -96,10 +96,10 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="sticky top-4 z-30 bg-transparent">
       <div className="mx-auto max-w-5xl page-gutter-x">
-        <div className="grid h-14 grid-cols-[1fr_auto] items-center gap-3 sm:h-16 lg:h-16 lg:grid-cols-[auto_1fr_auto]">
+        <div className="grid h-16 grid-cols-[1fr_auto] items-center gap-3 sm:h-16 lg:h-16 lg:grid-cols-[auto_1fr_auto]">
           {/* Brand Logo & Name */}
           <div className="flex items-center gap-3">
-            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full">
+            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full">
               <img src={brandLogo} alt="" className="w-full h-full object-cover" />
             </div>
             <span className="hidden font-onest text-lg font-black leading-tight tracking-tight text-celtic-900 lg:inline">
@@ -145,7 +145,7 @@ export const Header: React.FC<HeaderProps> = ({
               href={spreadsheetUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex h-16 w-16 bg-snow-drift-50 items-center justify-center rounded-full text-celtic-800 transition-colors hover:bg-snow-drift-100 hover:text-celtic-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
+              className="flex h-12 w-12 bg-snow-drift-50 items-center justify-center rounded-full text-celtic-800 transition-colors hover:bg-snow-drift-100 hover:text-celtic-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
               aria-label="เปิด Google Sheets"
               title="เปิด Google Sheets"
             >
@@ -154,7 +154,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onExportStatement}
-              className="flex h-16 w-16 bg-snow-drift-50 items-center justify-center rounded-full text-celtic-800 transition-colors hover:bg-snow-drift-200 hover:text-celtic-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
+              className="flex h-12 w-12 bg-snow-drift-50 items-center justify-center rounded-full text-celtic-800 transition-colors hover:bg-snow-drift-200 hover:text-celtic-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
               aria-label="ส่งออกรายงานรายรับรายจ่ายเป็น PDF"
               title="ส่งออกรายงาน PDF"
             >
