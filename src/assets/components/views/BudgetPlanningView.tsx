@@ -578,7 +578,7 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
   return (
     <div className="mx-auto w-full max-w-5xl space-y-2 pb-8">
       <PageHeader
-        title="แพลนงบประมาณ"
+        title="แพลนงบ"
         inlineTrailing
         trailing={(
           <SlidingPillToggle
@@ -594,7 +594,7 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
             }}
             ariaLabel="เลือกประเภทงบประมาณ"
             compact
-            className="w-40"
+            className="w-36"
             pillClassName="bg-celtic-900"
             activeTextClassName="!text-snow-drift-50"
             inactiveTextClassName="text-celtic-700 hover:text-celtic-900"

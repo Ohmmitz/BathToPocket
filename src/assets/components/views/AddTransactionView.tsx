@@ -203,6 +203,12 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
 
   const handleBudgetItemPointerDown = (event: React.PointerEvent<HTMLSpanElement>, item: BudgetItem) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
+    // Keep receiving touch moves when the finger leaves the icon on iOS Safari.
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture may be unavailable for a cancelled browser gesture.
+    }
     dragCandidateRef.current = {
       item,
       pointerId: event.pointerId,
@@ -321,7 +327,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
   return (
     <div className="mx-auto w-full max-w-5xl space-y-2 pb-8">
       <PageHeader
-        title="บันทึกค่าใช้จ่าย"
+        title="จดค่าใช้จ่าย"
         inlineTrailing
         trailing={(
           <SlidingPillToggle
@@ -329,7 +335,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
             onChange={(nextType) => handleTypeChange(nextType as TransactionType)}
             ariaLabel="เลือกประเภทรายการ"
             compact
-            className="w-40"
+            className="w-36"
             pillClassName="bg-celtic-900"
             activeTextClassName="!text-snow-drift-50"
             inactiveTextClassName="text-celtic-700 hover:text-celtic-900"
@@ -391,7 +397,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
         </div>
       </section>}
       {/* Main Input Form */}
-      {currentStep !== 3 && <form onSubmit={handleReviewAndSubmit} className="glass-card rounded-3xl p-2 border border-white/80 shadow-xs space-y-4">
+      {currentStep !== 3 && <form onSubmit={handleReviewAndSubmit} className="relative z-10 glass-card rounded-3xl p-2 border border-white/80 shadow-xs space-y-4">
         {currentStep === 1 && <div className="space-y-4">
         {/* Expense category filter tags */}
         {type === 'expense' && <div>
@@ -444,6 +450,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
                     <span
                       className="budget-item-drag-handle flex h-24 w-24 items-center justify-center overflow-hidden"
                       onPointerDown={(event) => handleBudgetItemPointerDown(event, item)}
+                      onDragStart={(event) => event.preventDefault()}
                     >
                       {iconUrl ? (
                         <img src={iconUrl} alt="" draggable={false} className="h-full w-full select-none bg-transparent p-1 object-contain" />
