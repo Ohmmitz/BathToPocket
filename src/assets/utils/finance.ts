@@ -109,15 +109,15 @@ export interface SavingGoal {
 export type BudgetStatus = 'normal' | 'warning' | 'exceeded';
 
 /**
- * Return the reporting month for the 28th-to-27th accounting cycle.
- * Transactions dated on the 28th or later belong to the following month's period.
+ * Return the reporting month for the 27th-to-26th accounting cycle.
+ * Transactions dated on the 27th or later belong to the following month's period.
  */
 export function getAccountingPeriodMonth(value: string | Date = new Date()): string {
   const date = typeof value === 'string'
     ? new Date(Number(value.slice(0, 4)), Number(value.slice(5, 7)) - 1, Number(value.slice(8, 10)))
     : value;
   const year = date.getFullYear();
-  const month = date.getMonth() + (date.getDate() >= 28 ? 1 : 0);
+  const month = date.getMonth() + (date.getDate() >= 27 ? 1 : 0);
   const periodDate = new Date(year, month, 1);
   return `${periodDate.getFullYear()}-${String(periodDate.getMonth() + 1).padStart(2, '0')}`;
 }
@@ -128,12 +128,12 @@ export function getWeekdaysInMonth(monthValue: string): number {
 
 export function getSelectedDaysInMonth(monthValue: string, selectedDays: number[]): number {
   const [year, month] = monthValue.split('-').map(Number);
-  const daysInMonth = new Date(year, month, 0).getDate();
   const selectedDaySet = new Set(selectedDays);
   let count = 0;
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    const weekday = new Date(year, month - 1, day).getDay();
-    if (selectedDaySet.has(weekday)) count += 1;
+  const periodStart = new Date(year, month - 2, 27);
+  const periodEnd = new Date(year, month - 1, 26);
+  for (const date = periodStart; date <= periodEnd; date.setDate(date.getDate() + 1)) {
+    if (selectedDaySet.has(date.getDay())) count += 1;
   }
   return count;
 }

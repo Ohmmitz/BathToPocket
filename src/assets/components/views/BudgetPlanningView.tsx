@@ -20,6 +20,7 @@ import {
   LEGACY_INCOME_CATEGORIES,
   DEFAULT_INCOME_SOURCE_ITEMS,
   TransactionType,
+  getAccountingPeriodMonth,
   calculateBudgetTotal,
   getBudgetItemAmount,
   getSelectedDaysInMonth,
@@ -385,9 +386,10 @@ export const BudgetPlanningView: React.FC<BudgetPlanningViewProps> = ({
   isSyncing,
 }) => {
   const today = new Date();
-  const currentMonth = monthValue(today);
+  const currentMonth = getAccountingPeriodMonth(today);
+  const [accountingYear, accountingMonth] = currentMonth.split('-').map(Number);
   const monthOptions = Array.from({ length: 37 }, (_, index) => {
-    const date = new Date(today.getFullYear(), today.getMonth() - 12 + index, 1);
+    const date = new Date(accountingYear, accountingMonth - 1 - 12 + index, 1);
     const value = monthValue(date);
     return { value, label: monthLabel(value) };
   });

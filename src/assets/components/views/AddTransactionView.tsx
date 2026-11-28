@@ -249,7 +249,7 @@ export const AddTransactionView: React.FC<AddTransactionViewProps> = ({
     let warningMsg: string | null = null;
     if (type === 'expense') {
       const budgetObj = budgets.find((b) => b.category === category);
-      const monthPrefix = date.substring(0, 7);
+      const monthPrefix = getAccountingPeriodMonth(date);
       const planned = budgetObj
         ? budgetObj.items?.length ? calculateBudgetTotal(budgetObj.items, monthPrefix) : budgetObj.totalPlanned
         : 0;

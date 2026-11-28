@@ -614,6 +614,10 @@ export default function App() {
         setActiveTab={setActiveTab}
         spreadsheetUrl={DEFAULT_SPREADSHEET_URL}
         onExportStatement={handleExportMonthlyStatement}
+        onNavigateToHistory={() => {
+          setActiveTab('history');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
       />
 
       {/* Main Container */}
@@ -623,10 +627,6 @@ export default function App() {
             transactions={transactions}
             onNavigateToBudget={() => setActiveTab('budget')}
             onNavigateToAdd={() => setActiveTab('add')}
-            onNavigateToHistory={() => {
-              setActiveTab('history');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
           />
         )}
 

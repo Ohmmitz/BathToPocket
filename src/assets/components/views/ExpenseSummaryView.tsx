@@ -1,8 +1,5 @@
 import React, { useState } from 'react';
-import { 
-  History,
-  Search,
-} from 'lucide-react';
+import { Search } from 'lucide-react';
 import { 
   Transaction, 
   calculateCategorySpent, 
@@ -48,7 +45,6 @@ interface ExpenseSummaryViewProps {
   transactions: Transaction[];
   onNavigateToBudget: () => void;
   onNavigateToAdd: () => void;
-  onNavigateToHistory: () => void;
 }
 
 type SummaryChartMode = 'spent' | 'remaining' | 'categoryShares';
@@ -57,7 +53,6 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
   transactions,
   onNavigateToBudget,
   onNavigateToAdd,
-  onNavigateToHistory,
 }) => {
   const today = new Date();
   const currentMonthStr = getAccountingPeriodMonth(today);
@@ -260,20 +255,6 @@ export const ExpenseSummaryView: React.FC<ExpenseSummaryViewProps> = ({
                 </article>
               );
             })}
-          </div>
-        )}
-        {expenseHistory.length > 0 && (
-          <div className="flex justify-center pt-1">
-            <button
-              type="button"
-              onClick={onNavigateToHistory}
-              className="flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-snow-drift-100/40 px-4 text-xs font-semibold text-celtic-900 transition-colors hover:bg-apple-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300"
-              aria-label="ไปหน้าประวัติรายการบันทึก"
-              title="ดูประวัติทั้งหมด"
-            >
-              <History className="h-4 w-4" />
-              <span>ดูทั้งหมด</span>
-            </button>
           </div>
         )}
       </section>

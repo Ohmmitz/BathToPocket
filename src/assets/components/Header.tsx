@@ -7,6 +7,7 @@ import {
   PiggyBank, 
   FileSpreadsheet,
   FileDown,
+  History,
 } from 'lucide-react';
 
 export type TabType = 'summary' | 'add' | 'budget' | 'savings' | 'history';
@@ -78,6 +79,7 @@ interface HeaderProps {
   setActiveTab: (tab: TabType) => void;
   spreadsheetUrl: string;
   onExportStatement: () => void;
+  onNavigateToHistory: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -85,6 +87,7 @@ export const Header: React.FC<HeaderProps> = ({
   setActiveTab,
   spreadsheetUrl,
   onExportStatement,
+  onNavigateToHistory,
 }) => {
   const navItems: { id: TabType; label: string; icon: React.ReactNode }[] = [
     { id: 'summary', label: 'สรุปงบ', icon: <PieChart className="w-4 h-4" /> },
@@ -141,6 +144,16 @@ export const Header: React.FC<HeaderProps> = ({
             })}
           </nav>
           <div className="flex items-center justify-end gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onClick={onNavigateToHistory}
+              className={`flex h-12 w-12 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-300 ${activeTab === 'history' ? 'bg-celtic-900 text-snow-drift-50 hover:bg-celtic-800' : 'bg-snow-drift-50 text-celtic-800 hover:bg-snow-drift-100 hover:text-celtic-900'}`}
+              aria-label="ดูประวัติทั้งหมด"
+              aria-current={activeTab === 'history' ? 'page' : undefined}
+              title="ดูประวัติทั้งหมด"
+            >
+              <History className="h-6 w-6" />
+            </button>
             <a
               href={spreadsheetUrl}
               target="_blank"
